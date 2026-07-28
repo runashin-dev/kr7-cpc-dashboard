@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>병원별 CPC 주차별 추이 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1a2130; --sub:#6b7684;
+    --line:#e4e8ef; --brand:#4361ee; --brand2:#f72585;
+    --up:#e63946; --down:#1d7874; --flat:#9aa5b1;
+    --chip:#eef1f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px}
+  header h1{font-size:20px;font-weight:800;letter-spacing:-.4px}
+  header p{color:var(--sub);margin-top:3px;font-size:12px}
+
+  .tabs{display:flex;gap:6px;margin:16px 0 14px}
+  .tab{padding:9px 18px;border:none;background:var(--chip);color:var(--sub);
+    border-radius:9px;font-weight:700;cursor:pointer;font-size:13px;transition:.15s}
+  .tab.active{background:var(--brand);color:#fff}
+  .tab .badge{background:var(--brand2);color:#fff;border-radius:20px;
+    padding:1px 7px;font-size:11px;margin-left:6px}
+  .tab.active .badge{background:#fff;color:var(--brand2)}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+    background:var(--card);padding:14px 16px;border-radius:12px;
+    border:1px solid var(--line);margin-bottom:14px}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:11px;color:var(--sub);font-weight:700;padding-left:2px}
+  select,input[type=text]{padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;font-size:13px;background:#fff;color:var(--ink);min-width:130px}
+  input[type=text]{min-width:200px}
+  .toggle{display:flex;background:var(--chip);border-radius:8px;padding:3px}
+  .toggle button{border:none;background:none;padding:6px 12px;border-radius:6px;
+    font-weight:700;font-size:12px;color:var(--sub);cursor:pointer}
+  .toggle button.on{background:#fff;color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .spacer{flex:1}
+  .count{color:var(--sub);font-size:12px;font-weight:700;white-space:nowrap}
+  .reset{padding:8px 12px;border:1px solid var(--line);background:#fff;
+    border-radius:8px;cursor:pointer;font-size:12px;color:var(--sub);font-weight:700}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px 10px}
+  .chead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+  .cname{font-weight:800;font-size:14px}
+  .cmeta{color:var(--sub);font-size:11px;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .pill{background:var(--chip);border-radius:5px;padding:1px 6px;font-weight:700}
+  .pill.t1{background:#fde8ef;color:#c9184a}
+  .pill.t2{background:#e7edff;color:#3a56d4}
+  .delta{text-align:right;white-space:nowrap}
+  .delta .latest{font-size:13px;font-weight:800;margin-bottom:3px}
+  .delta .wtag{display:inline-block;font-size:10px;color:#fff;background:var(--brand);
+    border-radius:4px;padding:0 5px;margin-right:4px;font-weight:800;vertical-align:middle}
+  .delta .drow{font-size:12px;font-weight:800;line-height:1.5}
+  .delta .drow .dlbl{display:inline-block;font-size:10px;color:var(--sub);
+    background:var(--chip);border-radius:4px;padding:0 5px;margin-right:5px;font-weight:700}
+  .delta .pct{font-size:10.5px;font-weight:700;opacity:.85}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .chartbox{height:150px;position:relative}
+  .evrow{display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+    font-size:11px;color:var(--sub)}
+  .evrow b{color:var(--ink)}
+  .ev-badge{font-weight:800;padding:1px 6px;border-radius:5px;margin-left:4px}
+  .ev-up{background:#fde3e5;color:var(--up)} .ev-down{background:#dff1ef;color:var(--down)}
+
+  .empty{text-align:center;padding:60px;color:var(--sub);grid-column:1/-1}
+
+  .alertwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:#fafbfd;color:var(--sub);font-weight:700;font-size:11px;
+    text-transform:uppercase;letter-spacing:.3px;cursor:pointer;user-select:none}
+  th:hover{color:var(--ink)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  th.num{text-align:right}
+  tr:hover td{background:#f8faff}
+  .tag{font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;white-space:nowrap}
+  .tag.up{background:#fde3e5;color:var(--up)} .tag.down{background:#dff1ef;color:var(--down)}
+  .spark{width:96px;height:28px}
+  .bigchart{height:380px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:middle}
+  .sectitle{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;margin:4px 2px 11px}
+  .sectitle .sub{font-size:11px;color:var(--sub);font-weight:600}
+  .pct.up{color:var(--up)} .pct.down{color:var(--down)}
+  .anomgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .anompanel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .anompanel h4{font-size:13px;margin-bottom:8px;font-weight:800}
+  .anomrow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .anomrow:last-child{border-bottom:none}
+  .anomrow .nm{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .anomrow .amt{font-weight:800;white-space:nowrap}
+  .anomrow .cur{color:var(--sub);white-space:nowrap;font-size:11px}
+  .mbadge{font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;white-space:nowrap}
+  .mbadge.imp{background:#eef2ff;color:#3a56d4}
+  .mbadge.live{background:#fff0f6;color:#c9184a}
+  @media(max-width:820px){.anomgrid{grid-template-columns:1fr}}
+  .mgrchips{display:flex;flex-wrap:wrap;gap:8px}
+  .mgrchip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 14px;
+    font-weight:700;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--ink)}
+  .mgrchip.on{border-color:var(--brand);background:#eef2ff;color:var(--brand)}
+  .mgrchip .dot{width:9px;height:9px;border-radius:50%}
+  #mgrTable tr{cursor:pointer}
+  #mgrTable tr.sel td{background:#eef2ff}
+  .focustag{font-weight:800;font-size:13px}
+  #mgrFocusBar{display:flex;align-items:center;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>병원별 CPC 주차별 추이 대시보드</h1>
+    <p>기간 <span id="rangeNote"></span> (주간 <span id="weekN"></span>주) · 총 <span id="totalN"></span>개 병원 · 각 주차 = 그 주(월요일 기준) 한 주치 · 등락폭 = <b>주간</b>(직전주 <span id="pwNote"></span>주차 대비) / <b>월간</b>(4주 전 <span id="mwNote"></span>주차 대비)</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="trend">📈 CPC 추이</button>
+    <button class="tab" data-tab="mgr">👥 담당자별 총액 추이</button>
+    <button class="tab" data-tab="alert">🔔 이벤트 모니터링 <span class="badge" id="alertBadge">0</span></button>
+  </div>
+
+  <div class="toolbar">
+    <div class="fld"><label>담당자</label>
+      <select id="fCharge"><option value="">전체</option></select></div>
+    <div class="fld"><label>티어</label>
+      <select id="fTier"><option value="">전체</option></select></div>
+    <div class="fld"><label>지역</label>
+      <select id="fDistrict"><option value="">전체</option></select></div>
+    <div class="fld"><label>병원명 검색</label>
+      <input type="text" id="fSearch" placeholder="병원명 입력..."></div>
+    <div class="fld" id="metricFld"><label>CPC 지표</label>
+      <div class="toggle" id="metricToggle">
+        <button data-m="cpc_avg" class="on">일평균 CPC매출액</button>
+        <button data-m="cpc">CPC매출액(주간)</button>
+      </div></div>
+    <div class="fld" id="sortFld"><label>정렬</label>
+      <select id="fSort">
+        <option value="wow_desc">주간 등락 큰순 ↑</option>
+        <option value="wow_asc">주간 등락 작은순 ↓</option>
+        <option value="mom_desc">월간 등락 큰순 ↑</option>
+        <option value="mom_asc">월간 등락 작은순 ↓</option>
+        <option value="latest_desc">최신값 높은순</option>
+        <option value="name">병원명순</option>
+      </select></div>
+    <div class="spacer"></div>
+    <span class="count" id="count"></span>
+    <button class="reset" id="reset">초기화</button>
+  </div>
+
+  <div id="trendView"><div class="grid" id="grid"></div></div>
+
+  <div id="mgrView" style="display:none">
+    <div class="sectitle">👥 담당자별 광고 총액(CPC매출액) 추이 <span class="sub">선 끝에 담당자명 표시 · 선을 클릭하면 그 담당자만 보기</span></div>
+    <div id="mgrFocusBar" style="display:none;margin:0 2px 8px"></div>
+    <div class="bigchart"><canvas id="mgrChart"></canvas></div>
+    <div class="alertwrap"><table id="mgrTable"></table></div>
+
+    <div class="sectitle" style="margin-top:22px">🔎 담당자 상세 <span class="sub">선택한 담당자의 병원별 CPC매출액 추이</span></div>
+    <div id="mgrChips" class="mgrchips"></div>
+    <div class="alertwrap" style="margin-top:12px"><table id="mgrDetail"></table></div>
+  </div>
+
+  <div id="alertView" style="display:none">
+    <div class="sectitle">📊 병원별 CPC 노출·라이브 이벤트 추이 <span class="sub" id="evPeriod"></span></div>
+    <div class="alertwrap"><table id="evTable"></table></div>
+
+    <div class="sectitle" style="margin-top:22px">⚠️ 증감 특이사항 <span class="sub">최근주(7/20) vs 직전주(7/13) 변화 발생 병원</span>
+      <div class="toggle" id="dirToggle" style="margin-left:auto">
+        <button data-d="all" class="on">전체</button>
+        <button data-d="up">증가</button>
+        <button data-d="down">감소</button>
+      </div>
+    </div>
+    <div id="anomalyGrid" class="anomgrid"></div>
+  </div>
+</div>
+
+<script id="DATA" type="application/json">{"weeks": ["06/01", "06/08", "06/15", "06/22", "06/29", "07/06", "07/13", "07/20"], "hospitals": [{"charge": "Ace", "id": "414", "name": "아이유의원(강남구)", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [12, 12, 12, 12, 12, 12, 12, 12], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [15697.14, 17118.57, 13972.86, 12568.57, 14131.43, 17061.43, 16257.14, 13142.86], "cpc_avg_chg": [null, 1421.43, -3145.71, -1404.29, 1562.86, 2930.0, -804.29, -3114.29], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [109880, 119830, 97810, 87980, 98920, 119430, 113800, 92000]}}, {"charge": "Ace", "id": "3776", "name": "더끌림산부인과의원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [28, 29, 29, 27, 29, 30, 31, 31], "live_chg": [null, 1, 0, -2, 2, 1, 1, 0], "cpc_avg": [343597.14, 301805.71, 253902.86, 219347.14, 212770, 230867.14, 250374.29, 245268.57], "cpc_avg_chg": [null, -41791.43, -47902.86, -34555.71, -6577.14, 18097.14, 19507.14, -5105.71], "imp": [15, 15, 15, 15, 15, 15, 15, 15], "cpc": [2405180, 2112640, 1777320, 1535430, 1489390, 1616070, 1752620, 1716880]}}, {"charge": "Ace", "id": "5349", "name": "슬림영의원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [8, 8, 8, 8, 8, 8, 9, 9], "live_chg": [null, 0, 0, 0, 0, 0, 1, 0], "cpc_avg": [1962.86, 1942.86, 2011.43, 1903.33, 1488, 2362.86, 3747.14, 4601.43], "cpc_avg_chg": [null, -20, 68.57, -108.1, -415.33, 874.86, 1384.29, 854.29], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [13740, 13600, 14080, 11420, 7440, 16540, 26230, 32210]}}, {"charge": "Ace", "id": "8096", "name": "밀락씨의원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 6, 6, 6], "live_chg": [null, 0, 0, 0, 0, -1, 0, 0], "cpc_avg": [41450, 29224.29, 14357.14, 19947.14, 19452.86, 19597.14, 34047.14, 21487.14], "cpc_avg_chg": [null, -12225.71, -14867.14, 5590.0, -494.29, 144.29, 14450.0, -12560.0], "imp": [7, 7, 5, 5, 5, 5, 5, 5], "cpc": [290150, 204570, 100500, 139630, 136170, 137180, 238330, 150410]}}, {"charge": "Hardy", "id": "4", "name": "디엠성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [19, 19, 19, 19, 19, 19, 20, 20], "live_chg": [null, 0, 0, 0, 0, 0, 1, 0], "cpc_avg": [396708.57, 413112.86, 466705.71, 524634.29, 576465.71, 563945.71, 598090, 537621.43], "cpc_avg_chg": [null, 16404.29, 53592.86, 57928.57, 51831.43, -12520, 34144.29, -60468.57], "imp": [13, 13, 12, 14, 12, 14, 13, 13], "cpc": [2776960, 2891790, 3266940, 3672440, 4035260, 3947620, 4186630, 3763350]}}, {"charge": "Hardy", "id": "23", "name": "바노바기성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [39, 39, 40, 40, 39, 39, 39, 39], "live_chg": [null, 0, 1, 0, -1, 0, 0, 0], "cpc_avg": [204492.86, 192815.71, 182218.57, 174931.43, 151998.57, 158822.86, 137234.29, 117162.86], "cpc_avg_chg": [null, -11677.14, -10597.14, -7287.14, -22932.86, 6824.29, -21588.57, -20071.43], "imp": [5, 5, 5, 5, 5, 5, 5, 5], "cpc": [1431450, 1349710, 1275530, 1224520, 1063990, 1111760, 960640, 820140]}}, {"charge": "Hardy", "id": "116", "name": "티에스성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [16, 16, 16, 16, 16, 16, 16, 16], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [182625.71, 143475.71, 188594.29, 116828.57, 119844.29, 127577.14, 163921.43, 152060], "cpc_avg_chg": [null, -39150, 45118.57, -71765.71, 3015.71, 7732.86, 36344.29, -11861.43], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [1278380, 1004330, 1320160, 817800, 838910, 893040, 1147450, 1064420]}}, {"charge": "Hardy", "id": "141", "name": "마블성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [21, 21, 22, 22, 22, 20, 21, 21], "live_chg": [null, 0, 1, 0, 0, -2, 1, 0], "cpc_avg": [179828.57, 152324.29, 160948.57, 135457.14, 125552.86, 139647.14, 141318.57, 155235.71], "cpc_avg_chg": [null, -27504.29, 8624.29, -25491.43, -9904.29, 14094.29, 1671.43, 13917.14], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [1258800, 1066270, 1126640, 948200, 878870, 977530, 989230, 1086650]}}, {"charge": "Hardy", "id": "189", "name": "뷰성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [51, 51, 51, 51, 51, 51, 51, 0], "live_chg": [null, 0, 0, 0, 0, 0, 0, -51], "cpc_avg": [577014, 609190, 592354, 607066, 553350, 617198, 624085, null], "cpc_avg_chg": [null, 32176, -16836, 14712, -53716, 63848, 6887, -624085], "imp": [2, 2, 2, 2, 2, 2, 2, null], "cpc": [2885070, 3045950, 2961770, 3035330, 2766750, 3085990, 2496340, null]}}, {"charge": "Hardy", "id": "200", "name": "티오피성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 7, 7, 0, 7, 7], "live_chg": [null, 0, 0, 7, 0, -7, 7, 0], "cpc_avg": [null, null, null, 1990, 2310, null, 2360, 1420], "cpc_avg_chg": [null, 0, 0, 1990, 320, -2310, 2360, -940], "imp": [null, null, null, 1, 1, null, 1, 1], "cpc": [null, null, null, 1990, 2310, null, 2360, 1420]}}, {"charge": "Hardy", "id": "207", "name": "현대미학성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [13, 13, 13, 15, 15, 16, 16, 18], "live_chg": [null, 0, 0, 2, 0, 1, 0, 2], "cpc_avg": [5657.14, 6128.57, 5342.86, 5578.57, 3221.43, 4478.57, 6442.86, 6835.71], "cpc_avg_chg": [null, 471.43, -785.71, 235.71, -2357.14, 1257.14, 1964.29, 392.86], "imp": [4, 3, 2, 3, 3, 4, 3, 3], "cpc": [39600, 42900, 37400, 39050, 22550, 31350, 45100, 47850]}}, {"charge": "Hardy", "id": "322", "name": "메이드영성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [12, 12, 12, 12, 12, 12, 12, 12], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [225310, 258708.57, 294301.43, 206610, 177535.71, 173917.14, 222782.86, 249158.57], "cpc_avg_chg": [null, 33398.57, 35592.86, -87691.43, -29074.29, -3618.57, 48865.71, 26375.71], "imp": [5, 5, 5, 5, 6, 6, 6, 6], "cpc": [1577170, 1810960, 2060110, 1446270, 1242750, 1217420, 1559480, 1744110]}}, {"charge": "Hardy", "id": "341", "name": "필의원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [2, 2, 2, 2, 2, 2, 1, 1], "live_chg": [null, 0, 0, 0, 0, 0, -1, 0], "cpc_avg": [5285, 2731.43, 776.67, 706, 2036, 2040, 550, 550], "cpc_avg_chg": [null, -2553.57, -1954.76, -70.67, 1330, 4, -1490, 0], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [31710, 19120, 2330, 3530, 10180, 8160, 550, 550]}}, {"charge": "Hardy", "id": "343", "name": "스노우의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [20, 20, 20, 20, 21, 21, 21, 21], "live_chg": [null, 0, 0, 0, 1, 0, 0, 0], "cpc_avg": [22292.86, 20911.43, 16117.14, 12444.29, 10075.71, 11285.71, 16268.57, 23244.29], "cpc_avg_chg": [null, -1381.43, -4794.29, -3672.86, -2368.57, 1210, 4982.86, 6975.71], "imp": [7, 6, 6, 6, 6, 6, 6, 6], "cpc": [156050, 146380, 112820, 87110, 70530, 79000, 113880, 162710]}}, {"charge": "Hardy", "id": "370", "name": "팝성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [24, 24, 24, 24, 24, 23, 23, 24], "live_chg": [null, 0, 0, 0, 0, -1, 0, 1], "cpc_avg": [199052.86, 188480, 215241.43, 194280, 201048.57, 233608.57, 207875.71, 199280], "cpc_avg_chg": [null, -10572.86, 26761.43, -20961.43, 6768.57, 32560, -25732.86, -8595.71], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [1393370, 1319360, 1506690, 1359960, 1407340, 1635260, 1455130, 1394960]}}, {"charge": "Hardy", "id": "580", "name": "허쉬성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [30, 30, 32, 32, 32, 32, 32, 32], "live_chg": [null, 0, 2, 0, 0, 0, 0, 0], "cpc_avg": [186785.71, 154790, 190292.86, 167034.29, 198184.29, 226227.14, 245405.71, 234255.71], "cpc_avg_chg": [null, -31995.71, 35502.86, -23258.57, 31150, 28042.86, 19178.57, -11150], "imp": [16, 16, 17, 18, 16, 16, 18, 19], "cpc": [1307500, 1083530, 1332050, 1169240, 1387290, 1583590, 1717840, 1639790]}}, {"charge": "Hardy", "id": "826", "name": "유라인의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [16, 16, 16, 16, 16, 16, 16, 16], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [68098.57, 61922.86, 67092.86, 61628.57, 66491.43, 70251.43, 68525.71, 68502.86], "cpc_avg_chg": [null, -6175.71, 5170, -5464.29, 4862.86, 3760, -1725.71, -22.86], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [476690, 433460, 469650, 431400, 465440, 491760, 479680, 479520]}}, {"charge": "Hardy", "id": "1793", "name": "송도리앤스타의원", "tier": "2", "district": "인천", "hgroup": "정식입점", "series": {"live": [0, 0, 15, 16, 16, 16, 16, 16], "live_chg": [null, 0, 15, 1, 0, 0, 0, 0], "cpc_avg": [null, null, 23258.33, 30831.43, 33208.57, 37107.14, 34948.57, 23761.43], "cpc_avg_chg": [null, 0, 23258.33, 7573.1, 2377.14, 3898.57, -2158.57, -11187.14], "imp": [null, null, 3, 3, 3, 3, 3, 3], "cpc": [null, null, 139550, 215820, 232460, 259750, 244640, 166330]}}, {"charge": "Hardy", "id": "1842", "name": "지앤지병원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 4, 0, 0, 0, 0, 4, 0], "live_chg": [null, 4, -4, 0, 0, 0, 4, -4], "cpc_avg": [null, 550, null, null, null, null, 550, null], "cpc_avg_chg": [null, 550, -550, 0, 0, 0, 550, -550], "imp": [null, 1, null, null, null, null, 1, null], "cpc": [null, 550, null, null, null, null, 550, null]}}, {"charge": "Hardy", "id": "2543", "name": "청담오케이성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [38, 38, 41, 42, 44, 46, 47, 36], "live_chg": [null, 0, 3, 1, 2, 2, 1, -11], "cpc_avg": [164957.14, 127511.43, 138475.71, 106924.29, 136717.14, 151384.29, 157613.33, 162607.14], "cpc_avg_chg": [null, -37445.71, 10964.29, -31551.43, 29792.86, 14667.14, 6229.05, 4993.81], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [1154700, 892580, 969330, 748470, 957020, 1059690, 945680, 1138250]}}, {"charge": "Hardy", "id": "2771", "name": "포인트업의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [15, 15, 15, 15, 15, 15, 15, 15], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [112240, 62840, 33644.29, 27031.43, 33401.43, 44471.43, 65911.43, 68780], "cpc_avg_chg": [null, -49400, -29195.71, -6612.86, 6370, 11070, 21440.0, 2868.57], "imp": [3, 1, 1, 1, 1, 1, 1, 1], "cpc": [785680, 439880, 235510, 189220, 233810, 311300, 461380, 481460]}}, {"charge": "Hardy", "id": "2788", "name": "닥터정 리반의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [2, 1, 1, 1, 1, 1, 1, 1], "live_chg": [null, -1, 0, 0, 0, 0, 0, 0], "cpc_avg": [36790, 17270, 97152.86, 94834.29, 65034.29, 62525.71, 40497.14, 60577.14], "cpc_avg_chg": [null, -19520, 79882.86, -2318.57, -29800.0, -2508.57, -22028.57, 20080], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [257530, 120890, 680070, 663840, 455240, 437680, 283480, 424040]}}, {"charge": "Hardy", "id": "3550", "name": "이승우의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [75935.71, 67935.71, 33124.29, 28637.14, 84470, 83344.29, 81430, 82745.71], "cpc_avg_chg": [null, -8000, -34811.43, -4487.14, 55832.86, -1125.71, -1914.29, 1315.71], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [531550, 475550, 231870, 200460, 591290, 583410, 570010, 579220]}}, {"charge": "Hardy", "id": "3569", "name": "아크성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 10, 11, 11, 11, 12, 13, 13], "live_chg": [null, 10, 1, 0, 0, 1, 1, 0], "cpc_avg": [null, 102905, 104240, 103502, 104903.33, 85246.67, 104523.33, 38151.67], "cpc_avg_chg": [null, 102905, 1335, -738, 1401.33, -19656.67, 19276.67, -66371.67], "imp": [null, 1, 1, 1, 1, 1, 1, 1], "cpc": [null, 411620, 521200, 517510, 314710, 255740, 313570, 228910]}}, {"charge": "Hardy", "id": "3739", "name": "서진성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [24, 24, 24, 23, 23, 23, 23, 23], "live_chg": [null, 0, 0, -1, 0, 0, 0, 0], "cpc_avg": [4778.57, 4101.43, 5162.86, 6334.29, 4601.43, 7001.43, 5564.29, 3401.43], "cpc_avg_chg": [null, -677.14, 1061.43, 1171.43, -1732.86, 2400, -1437.14, -2162.86], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [33450, 28710, 36140, 44340, 32210, 49010, 38950, 23810]}}, {"charge": "Hardy", "id": "3813", "name": "노원아이디의원", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [33, 33, 35, 35, 35, 35, 35, 0], "live_chg": [null, 0, 2, 0, 0, 0, 0, -35], "cpc_avg": [36277.14, 31070, 22525.71, 13618.57, 12825.71, 18734.29, 16100, null], "cpc_avg_chg": [null, -5207.14, -8544.29, -8907.14, -792.86, 5908.57, -2634.29, -16100], "imp": [4, 4, 4, 4, 4, 4, 4, null], "cpc": [253940, 217490, 157680, 95330, 89780, 131140, 64400, null]}}, {"charge": "Hardy", "id": "4127", "name": "휴고성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 16, 17, 16, 16, 16, 16], "live_chg": [null, 0, 16, 1, -1, 0, 0, 0], "cpc_avg": [null, null, 153736, 93364, 176011.43, 207508.57, 98215, 13050], "cpc_avg_chg": [null, 0, 153736, -60372, 82647.43, 31497.14, -109293.57, -85165], "imp": [null, null, 5, 4, 6, 5, 2, 2], "cpc": [null, null, 768680, 466820, 1232080, 1452560, 196430, 13050]}}, {"charge": "Hardy", "id": "4152", "name": "땡큐성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [34, 34, 34, 34, 34, 34, 34, 34], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [2671.43, 2200, 6938.57, 4078.57, 8158.57, 15282.86, 26360, 21384.29], "cpc_avg_chg": [null, -471.43, 4738.57, -2860, 4080, 7124.29, 11077.14, -4975.71], "imp": [5, 4, 5, 5, 5, 6, 6, 5], "cpc": [18700, 15400, 48570, 28550, 57110, 106980, 184520, 149690]}}, {"charge": "Hardy", "id": "4273", "name": "지힐링스퀘어의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 11, 11, 11], "live_chg": [null, 0, 0, 0, 0, 11, 0, 0], "cpc_avg": [null, null, null, null, null, 208457.14, 22362.86, 92894.29], "cpc_avg_chg": [null, 0, 0, 0, 0, 208457.14, -186094.29, 70531.43], "imp": [null, null, null, null, null, 3, 3, 1], "cpc": [null, null, null, null, null, 1459200, 156540, 650260]}}, {"charge": "Hardy", "id": "4647", "name": "BLS(비엘에스)의원-본점", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [41, 42, 42, 42, 43, 32, 26, 26], "live_chg": [null, 1, 0, 0, 1, -11, -6, 0], "cpc_avg": [14692.86, 14300, 13514.29, 7700, 1650, 2121.43, 1833.33, 1100], "cpc_avg_chg": [null, -392.86, -785.71, -5814.29, -6050, 471.43, -288.1, -733.33], "imp": [3, 3, 3, 4, 1, 1, 1, 1], "cpc": [102850, 100100, 94600, 53900, 11550, 14850, 11000, 1100]}}, {"charge": "Hardy", "id": "4889", "name": "강남리슬림의원", "tier": "2", "district": "강남서초", "hgroup": "육미병", "series": {"live": [4, 4, 4, 4, 4, 4, 4, 4], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [5795, 8728.33, 8545.71, 6465, 6452, 5965, 7178.57, 6915], "cpc_avg_chg": [null, 2933.33, -182.62, -2080.71, -13, -487, 1213.57, -263.57], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [23180, 52370, 59820, 25860, 32260, 35790, 50250, 41490]}}, {"charge": "Hardy", "id": "5260", "name": "포메디한의원", "tier": "2", "district": "인천", "hgroup": "정식입점", "series": {"live": [4, 4, 4, 4, 4, 3, 3, 3], "live_chg": [null, 0, 0, 0, 0, -1, 0, 0], "cpc_avg": [44147.14, 39251.43, 34294.29, 13021.43, 14327.14, 13075.71, 16918.57, 15991.43], "cpc_avg_chg": [null, -4895.71, -4957.14, -21272.86, 1305.71, -1251.43, 3842.86, -927.14], "imp": [2, 2, 2, 1, 1, 1, 1, 1], "cpc": [309030, 274760, 240060, 91150, 100290, 91530, 118430, 111940]}}, {"charge": "Hardy", "id": "5294", "name": "도약한의원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [66550, 69308.57, 63932.86, 62580, 62441.43, 65188.57, 58031.43, 53338.57], "cpc_avg_chg": [null, 2758.57, -5375.71, -1352.86, -138.57, 2747.14, -7157.14, -4692.86], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [465850, 485160, 447530, 438060, 437090, 456320, 406220, 373370]}}, {"charge": "Hardy", "id": "5640", "name": "브이에스(VS)라인의원-인천구월점", "tier": "1", "district": "인천", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 49, 48, 48, 48, 48], "live_chg": [null, 0, 0, 49, -1, 0, 0, 0], "cpc_avg": [null, null, null, 9625, 13671.43, 11157.14, 9350, 9507.14], "cpc_avg_chg": [null, 0, 0, 9625, 4046.43, -2514.29, -1807.14, 157.14], "imp": [null, null, null, 4, 4, 4, 4, 4], "cpc": [null, null, null, 38500, 95700, 78100, 65450, 66550]}}, {"charge": "Hardy", "id": "6221", "name": "래인의원", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [16, 16, 16, 16, 16, 16, 16, 16], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [86000, 88848.57, 75287.14, 72215.71, 63395.71, 65048.57, 63104.29, 71411.43], "cpc_avg_chg": [null, 2848.57, -13561.43, -3071.43, -8820.0, 1652.86, -1944.29, 8307.14], "imp": [12, 12, 12, 12, 11, 12, 12, 12], "cpc": [602000, 621940, 527010, 505510, 443770, 455340, 441730, 499880]}}, {"charge": "Hardy", "id": "7193", "name": "디라이트외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 5, 0, 0, 0, 0], "cpc_avg": [null, null, null, 840, 2536.67, 2580, 2910, 2465], "cpc_avg_chg": [null, 0, 0, 840, 1696.67, 43.33, 330, -445], "imp": [null, null, null, 1, 1, 1, 1, 1], "cpc": [null, null, null, 2520, 7610, 2580, 5820, 9860]}}, {"charge": "Hardy", "id": "7224", "name": "드림페이스의원", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 15, 15, 15], "live_chg": [null, 0, 0, 0, 0, 15, 0, 0], "cpc_avg": [null, null, null, null, null, 44345, 56552.86, 58250], "cpc_avg_chg": [null, 0, 0, 0, 0, 44345, 12207.86, 1697.14], "imp": [null, null, null, null, null, 2, 2, 2], "cpc": [null, null, null, null, null, 177380, 395870, 407750]}}, {"charge": "Hardy", "id": "7294", "name": "라인의정석의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [8, 8, 8, 8, 8, 8, 8, 8], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [51812.86, 51900, 52090, 51508.57, 52394.29, 51580, 52265.71, 51047.14], "cpc_avg_chg": [null, 87.14, 190, -581.43, 885.71, -814.29, 685.71, -1218.57], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [362690, 363300, 364630, 360560, 366760, 361060, 365860, 357330]}}, {"charge": "Hardy", "id": "7321", "name": "레브치과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [8634.29, 9924.29, 9445.71, 15878.57, 20488.57, 14397.14, 23667.14, 25355.71], "cpc_avg_chg": [null, 1290, -478.57, 6432.86, 4610.0, -6091.43, 9270.0, 1688.57], "imp": [3, 2, 3, 3, 3, 4, 4, 4], "cpc": [60440, 69470, 66120, 111150, 143420, 100780, 165670, 177490]}}, {"charge": "Hardy", "id": "7488", "name": "제이디리체스의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [27, 27, 26, 27, 29, 25, 19, 14], "live_chg": [null, 0, -1, 1, 2, -4, -6, -5], "cpc_avg": [2970, 9326, 8625.71, 7474.29, 6222.86, 8468.57, 6344.29, 7214.29], "cpc_avg_chg": [null, 6356, -700.29, -1151.43, -1251.43, 2245.71, -2124.29, 870], "imp": [1, 2, 1, 1, 1, 1, 1, 1], "cpc": [2970, 46630, 60380, 52320, 43560, 59280, 44410, 50500]}}, {"charge": "Lyn", "id": "15", "name": "아이디병원-피부과", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [22, 22, 22, 0, 0, 0, 0, 0], "live_chg": [null, 0, 0, -22, 0, 0, 0, 0], "cpc_avg": [55721.43, 52234.29, 3720, null, null, null, null, null], "cpc_avg_chg": [null, -3487.14, -48514.29, -3720, 0, 0, 0, 0], "imp": [1, 1, 1, null, null, null, null, null], "cpc": [390050, 365640, 3720, null, null, null, null, null]}}, {"charge": "Lyn", "id": "55", "name": "쥬얼리성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 26, 0, 0, 27, 28, 28, 28], "live_chg": [null, 26, -26, 0, 27, 1, 0, 0], "cpc_avg": [null, 63130, null, null, 111300, 108897.14, 107835.71, 64630], "cpc_avg_chg": [null, 63130, -63130, 0, 111300, -2402.86, -1061.43, -43205.71], "imp": [null, 1, null, null, 5, 3, 3, 5], "cpc": [null, 189390, null, null, 445200, 762280, 754850, 323150]}}, {"charge": "Lyn", "id": "62", "name": "그랜드성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [26481.43, 24110, 18281.43, 15127.14, 15808.57, 20897.14, 21854.29, 18982.86], "cpc_avg_chg": [null, -2371.43, -5828.57, -3154.29, 681.43, 5088.57, 957.14, -2871.43], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [185370, 168770, 127970, 105890, 110660, 146280, 152980, 132880]}}, {"charge": "Lyn", "id": "154", "name": "엔젤미의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [44, 44, 44, 44, 44, 44, 44, 44], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [229882.86, 218800, 213260, 196212.86, 205312.86, 218745.71, 207294.29, 188855.71], "cpc_avg_chg": [null, -11082.86, -5540, -17047.14, 9100, 13432.86, -11451.43, -18438.57], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [1609180, 1531600, 1492820, 1373490, 1437190, 1531220, 1451060, 1321990]}}, {"charge": "Lyn", "id": "250", "name": "디에이성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [65, 65, 65, 65, 0, 0, 0, 0], "live_chg": [null, 0, 0, 0, -65, 0, 0, 0], "cpc_avg": [407348.57, 334958.57, 286574.29, 201155, null, null, null, null], "cpc_avg_chg": [null, -72390, -48384.29, -85419.29, -201155, 0, 0, 0], "imp": [2, 1, 1, 1, null, null, null, null], "cpc": [2851440, 2344710, 2006020, 402310, null, null, null, null]}}, {"charge": "Lyn", "id": "257", "name": "아이디병원-본원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [38, 40, 41, 41, 40, 39, 39, 39], "live_chg": [null, 2, 1, 0, -1, -1, 0, 0], "cpc_avg": [2933340, 3434961.43, 2134487.14, 1704798.57, 1956710, 1945892.86, 2182548.57, 2324134.29], "cpc_avg_chg": [null, 501621.43, -1300474.29, -429688.57, 251911.43, -10817.14, 236655.71, 141585.71], "imp": [10, 11, 11, 9, 8, 8, 10, 10], "cpc": [20533380, 24044730, 14941410, 11933590, 13696970, 13621250, 15277840, 16268940]}}, {"charge": "Lyn", "id": "262", "name": "아이디병원-치과", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [20, 20, 0, 0, 0, 0, 0, 0], "live_chg": [null, 0, -20, 0, 0, 0, 0, 0], "cpc_avg": [100085, 112646.67, null, null, null, null, null, null], "cpc_avg_chg": [null, 12561.67, -112646.67, 0, 0, 0, 0, 0], "imp": [2, 2, null, null, null, null, null, null], "cpc": [400340, 337940, null, null, null, null, null, null]}}, {"charge": "Lyn", "id": "369", "name": "미호성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [4, 4, 4, 4, 4, 4, 4, 4], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [1360, 6065, 2753.33, 3846.67, 4455, 2780, 1630, 1972.5], "cpc_avg_chg": [null, 4705, -3311.67, 1093.33, 608.33, -1675, -1150, 342.5], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [2720, 12130, 8260, 11540, 8910, 5560, 4890, 7890]}}, {"charge": "Lyn", "id": "378", "name": "리버스의원-명동점", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [35, 34, 35, 35, 32, 32, 32, 26], "live_chg": [null, -1, 1, 0, -3, 0, 0, -6], "cpc_avg": [53498.57, 43595.71, 45115.71, 47734.29, 44580, 50515.71, 56660, 64380], "cpc_avg_chg": [null, -9902.86, 1520, 2618.57, -3154.29, 5935.71, 6144.29, 7720], "imp": [9, 9, 9, 9, 9, 9, 9, 9], "cpc": [374490, 305170, 315810, 334140, 312060, 353610, 396620, 450660]}}, {"charge": "Lyn", "id": "519", "name": "라리성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [4, 5, 5, 5, 5, 5, 5, 5], "live_chg": [null, 1, 0, 0, 0, 0, 0, 0], "cpc_avg": [3300, 2357.14, 3457.14, 4242.86, 2750, 3692.86, 3378.57, 5264.29], "cpc_avg_chg": [null, -942.86, 1100, 785.71, -1492.86, 942.86, -314.29, 1885.71], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [23100, 16500, 24200, 29700, 19250, 25850, 23650, 36850]}}, {"charge": "Lyn", "id": "535", "name": "오스킨성형외과", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [2, 2, 2, 2, 2, 2, 2, 2], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [41244.29, 51825.71, 41071.67, 50232.86, 48420, 51237.14, 59712, 61604.29], "cpc_avg_chg": [null, 10581.43, -10754.05, 9161.19, -1812.86, 2817.14, 8474.86, 1892.29], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [288710, 362780, 246430, 351630, 338940, 358660, 298560, 431230]}}, {"charge": "Lyn", "id": "763", "name": "제림성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [19, 19, 19, 19, 19, 19, 19, 19], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [246740, 250620, 218720, 237112.86, 211128.57, 226011.43, 202361.43, 161944.29], "cpc_avg_chg": [null, 3880, -31900, 18392.86, -25984.29, 14882.86, -23650, -40417.14], "imp": [5, 5, 5, 5, 5, 5, 5, 5], "cpc": [1727180, 1754340, 1531040, 1659790, 1477900, 1582080, 1416530, 1133610]}}, {"charge": "Lyn", "id": "865", "name": "리버스의원-홍대점", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [41, 41, 42, 43, 45, 45, 44, 44], "live_chg": [null, 0, 1, 1, 2, 0, -1, 0], "cpc_avg": [83851.43, 119018.33, 87752.86, 62830, 66204.29, 78928.57, 69082.86, 60908.57], "cpc_avg_chg": [null, 35166.9, -31265.48, -24922.86, 3374.29, 12724.29, -9845.71, -8174.29], "imp": [12, 14, 13, 11, 11, 11, 12, 10], "cpc": [586960, 714110, 614270, 439810, 463430, 552500, 483580, 426360]}}, {"charge": "Lyn", "id": "1020", "name": "바이미성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [12, 12, 13, 13, 12, 0, 0, 0], "live_chg": [null, 0, 1, 0, -1, -12, 0, 0], "cpc_avg": [90008, 55437.5, 76916, 64256, 12780, null, null, null], "cpc_avg_chg": [null, -34570.5, 21478.5, -12660, -51476, -12780, 0, 0], "imp": [1, 1, 1, 1, 1, null, null, null], "cpc": [450040, 221750, 384580, 321280, 12780, null, null, null]}}, {"charge": "Lyn", "id": "1190", "name": "베리굿성형외과", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [36, 37, 37, 37, 38, 38, 39, 37], "live_chg": [null, 1, 0, 0, 1, 0, 1, -2], "cpc_avg": [342560, 325774.29, 345821.43, 299155.71, 280307.14, 324457.14, 396432.86, 254882.86], "cpc_avg_chg": [null, -16785.71, 20047.14, -46665.71, -18848.57, 44150, 71975.71, -141550.0], "imp": [4, 5, 4, 4, 4, 5, 5, 5], "cpc": [2397920, 2280420, 2420750, 2094090, 1962150, 2271200, 2775030, 1784180]}}, {"charge": "Lyn", "id": "1889", "name": "제이필의원-강남점", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 0, 0, 13], "live_chg": [null, 0, 0, 0, 0, 0, 0, 13], "cpc_avg": [null, null, null, null, null, null, null, 86808.33], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 0, 86808.33], "imp": [null, null, null, null, null, null, null, 2], "cpc": [null, null, null, null, null, null, null, 520850]}}, {"charge": "Lyn", "id": "2052", "name": "하이봄성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [453582.86, 455567.14, 457207.14, 455448.57, 433062.86, 378902.86, 390535.71, 405432.86], "cpc_avg_chg": [null, 1984.29, 1640, -1758.57, -22385.71, -54160, 11632.86, 14897.14], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [3175080, 3188970, 3200450, 3188140, 3031440, 2652320, 2733750, 2838030]}}, {"charge": "Lyn", "id": "2117", "name": "TU치과의원(티유치과)", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [8, 8, 8, 8, 8, 8, 8, 8], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [100798.57, 98264.29, 70344.29, 79482.86, 65760, 74081.43, 66960, 49180], "cpc_avg_chg": [null, -2534.29, -27920, 9138.57, -13722.86, 8321.43, -7121.43, -17780], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [705590, 687850, 492410, 556380, 460320, 518570, 468720, 344260]}}, {"charge": "Lyn", "id": "2764", "name": "골든발란스여성의원", "tier": "2", "district": "강남서초", "hgroup": "육미병", "series": {"live": [6, 8, 8, 7, 6, 6, 7, 7], "live_chg": [null, 2, 0, -1, -1, 0, 1, 0], "cpc_avg": [1540, 1203.33, 1581.43, 1021.67, 1650, 2016.67, 2202.86, 1835], "cpc_avg_chg": [null, -336.67, 378.1, -559.76, 628.33, 366.67, 186.19, -367.86], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [7700, 7220, 11070, 6130, 6600, 12100, 15420, 11010]}}, {"charge": "Lyn", "id": "3002", "name": "새김성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [9, 9, 10, 10, 11, 11, 11, 11], "live_chg": [null, 0, 1, 0, 1, 0, 0, 0], "cpc_avg": [89234.29, 186712.86, 168308.57, 301651.43, 202094.29, 205984.29, 182774.29, 166188.57], "cpc_avg_chg": [null, 97478.57, -18404.29, 133342.86, -99557.14, 3890, -23210, -16585.71], "imp": [3, 5, 6, 6, 7, 6, 7, 6], "cpc": [624640, 1306990, 1178160, 2111560, 1414660, 1441890, 1279420, 1163320]}}, {"charge": "Lyn", "id": "3004", "name": "에이비성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [35, 35, 36, 36, 36, 36, 36, 36], "live_chg": [null, 0, 1, 0, 0, 0, 0, 0], "cpc_avg": [626094.29, 629720, 569544.29, 533745.71, 542302.86, 548175.71, 551988.57, 521137.29], "cpc_avg_chg": [null, 3625.71, -60175.71, -35798.57, 8557.14, 5872.86, 3812.86, -30851.29], "imp": [3, 3, 4, 4, 4, 4, 4, 4], "cpc": [4382660, 4408040, 3986810, 3736220, 3796120, 3837230, 3863920, 3647961]}}, {"charge": "Lyn", "id": "3179", "name": "온리프의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [47, 46, 44, 40, 39, 20, 19, 15], "live_chg": [null, -1, -2, -4, -1, -19, -1, -4], "cpc_avg": [81204.29, 72025.71, 68800, 57615.71, 41707.14, 43898.57, 48640, 56808.57], "cpc_avg_chg": [null, -9178.57, -3225.71, -11184.29, -15908.57, 2191.43, 4741.43, 8168.57], "imp": [15, 14, 14, 14, 12, 12, 13, 13], "cpc": [568430, 504180, 481600, 403310, 291950, 307290, 340480, 397660]}}, {"charge": "Lyn", "id": "3741", "name": "로담한의원-잠실점", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [1, 1, 1, 1, 1, 1, 1, 1], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [16784.29, 17077.14, 15807.14, 13907.14, 16145.71, 16707.14, 19890, 18105.71], "cpc_avg_chg": [null, 292.86, -1270.0, -1900, 2238.57, 561.43, 3182.86, -1784.29], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [117490, 119540, 110650, 97350, 113020, 116950, 139230, 126740]}}, {"charge": "Lyn", "id": "3831", "name": "위버스성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [10, 10, 10, 10, 10, 10, 10, 0], "live_chg": [null, 0, 0, 0, 0, 0, 0, -10], "cpc_avg": [14070, 1866, 2460, 1096.67, 60981.67, 52121.43, 57180, null], "cpc_avg_chg": [null, -12204, 594, -1363.33, 59885, -8860.24, 5058.57, -57180], "imp": [1, 1, 1, 1, 1, 2, 1, null], "cpc": [70350, 9330, 9840, 3290, 365890, 364850, 114360, null]}}, {"charge": "Lyn", "id": "4494", "name": "강남아이디의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [25, 25, 25, 25, 25, 25, 25, 23], "live_chg": [null, 0, 0, 0, 0, 0, 0, -2], "cpc_avg": [92960, 97095.71, 68250, 61107.14, 43005.71, 83968.57, 64998.57, 57965.71], "cpc_avg_chg": [null, 4135.71, -28845.71, -7142.86, -18101.43, 40962.86, -18970.0, -7032.86], "imp": [6, 6, 6, 6, 5, 6, 6, 6], "cpc": [650720, 679670, 477750, 427750, 301040, 587780, 454990, 405760]}}, {"charge": "Lyn", "id": "4608", "name": "압구정튠의원", "tier": "2", "district": "강남서초", "hgroup": "육미병", "series": {"live": [5, 6, 6, 6, 6, 6, 6, 6], "live_chg": [null, 1, 0, 0, 0, 0, 0, 0], "cpc_avg": [45520, 29363.33, 36070, 26776.67, 32138.33, 26152, 18062, 2790], "cpc_avg_chg": [null, -16156.67, 6706.67, -9293.33, 5361.67, -5986.33, -8090, -15272], "imp": [2, 1, 1, 1, 1, 1, 1, 1], "cpc": [273120, 176180, 144280, 160660, 192830, 130760, 90310, 2790]}}, {"charge": "Lyn", "id": "4687", "name": "몬스터의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [8, 8, 8, 8, 8, 8, 8, 8], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [47878.57, 52390, 49412.86, 46665.71, 43657.14, 50945.71, 43897.14, 42974.29], "cpc_avg_chg": [null, 4511.43, -2977.14, -2747.14, -3008.57, 7288.57, -7048.57, -922.86], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [335150, 366730, 345890, 326660, 305600, 356620, 307280, 300820]}}, {"charge": "Lyn", "id": "4848", "name": "메종드엠의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [13, 13, 13, 13, 13, 13, 13, 13], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [13541.43, 12831.43, 13417.14, 12332.86, 10467.14, 11765.71, 11412.86, 19512.86], "cpc_avg_chg": [null, -710, 585.71, -1084.29, -1865.71, 1298.57, -352.86, 8100.0], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [94790, 89820, 93920, 86330, 73270, 82360, 79890, 136590]}}, {"charge": "Lyn", "id": "4916", "name": "밸런스랩성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [28, 30, 32, 27, 27, 27, 27, 27], "live_chg": [null, 2, 2, -5, 0, 0, 0, 0], "cpc_avg": [252762.86, 171055.71, 125344.29, 106664.29, 114961.43, 164704.29, 135580, 96207.14], "cpc_avg_chg": [null, -81707.14, -45711.43, -18680, 8297.14, 49742.86, -29124.29, -39372.86], "imp": [6, 3, 3, 3, 3, 3, 3, 3], "cpc": [1769340, 1197390, 877410, 746650, 804730, 1152930, 949060, 673450]}}, {"charge": "Lyn", "id": "5064", "name": "연세굿데이치과의원-양재점", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [275928.57, 238397.14, 238651.43, 206782.86, 206664.29, 259464.29, 230652.86, 261595.71], "cpc_avg_chg": [null, -37531.43, 254.29, -31868.57, -118.57, 52800, -28811.43, 30942.86], "imp": [2, 2, 2, 2, 2, 2, 2, 2], "cpc": [1931500, 1668780, 1670560, 1447480, 1446650, 1816250, 1614570, 1831170]}}, {"charge": "Lyn", "id": "5800", "name": "강남비앤비의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [48242.86, 45270, 47457.14, 41185.71, 44504.29, 34932.86, 38584.29, 42454.29], "cpc_avg_chg": [null, -2972.86, 2187.14, -6271.43, 3318.57, -9571.43, 3651.43, 3870], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [337700, 316890, 332200, 288300, 311530, 244530, 270090, 297180]}}, {"charge": "Lyn", "id": "5857", "name": "우유빛의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 8, 8, 8], "live_chg": [null, 0, 0, 0, 0, 1, 0, 0], "cpc_avg": [284834.29, 171844.29, 140098.57, 107138.57, 163002.86, 233151.43, 194330, 348802.86], "cpc_avg_chg": [null, -112990.0, -31745.71, -32960.0, 55864.29, 70148.57, -38821.43, 154472.86], "imp": [6, 5, 5, 4, 6, 7, 7, 7], "cpc": [1993840, 1202910, 980690, 749970, 1141020, 1632060, 1360310, 2441620]}}, {"charge": "Lyn", "id": "6011", "name": "리참성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [9, 9, 9, 9, 11, 11, 11, 11], "live_chg": [null, 0, 0, 0, 2, 0, 0, 0], "cpc_avg": [42268, 28187.14, 16770, 51312.86, 43572.86, 15014.29, 24042.86, 64820], "cpc_avg_chg": [null, -14080.86, -11417.14, 34542.86, -7740, -28558.57, 9028.57, 40777.14], "imp": [3, 3, 2, 2, 6, 2, 2, 3], "cpc": [211340, 197310, 117390, 359190, 305010, 105100, 168300, 453740]}}, {"charge": "Lyn", "id": "6517", "name": "아이에이치의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 6, 6, 6, 6], "live_chg": [null, 0, 0, 0, -1, 0, 0, 0], "cpc_avg": [29528.57, 25440, 21117.14, 16440, 18177.14, 19404.29, 17765.71, 21164.29], "cpc_avg_chg": [null, -4088.57, -4322.86, -4677.14, 1737.14, 1227.14, -1638.57, 3398.57], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [206700, 178080, 147820, 115080, 127240, 135830, 124360, 148150]}}, {"charge": "Lyn", "id": "6561", "name": "하이즈의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [199620, 163081.43, 102802.86, 86882.86, 109091.43, 113228.57, 214931.43, 218950], "cpc_avg_chg": [null, -36538.57, -60278.57, -15920, 22208.57, 4137.14, 101702.86, 4018.57], "imp": [5, 5, 5, 5, 5, 5, 5, 5], "cpc": [1397340, 1141570, 719620, 608180, 763640, 792600, 1504520, 1532650]}}, {"charge": "Lyn", "id": "6586", "name": "플래뉴의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [3, 3, 3, 0, 0, 0, 4, 4], "live_chg": [null, 0, 0, -3, 0, 0, 4, 0], "cpc_avg": [112525, 116422.5, 139315, null, null, null, 8535, 81660], "cpc_avg_chg": [null, 3897.5, 22892.5, -139315, 0, 0, 8535, 73125], "imp": [2, 3, 3, null, null, null, 1, 3], "cpc": [450100, 465690, 557260, null, null, null, 34140, 571620]}}, {"charge": "Lyn", "id": "6615", "name": "서울오브치과병원", "tier": "2", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [3, 4, 0, 5, 5, 5, 4, 4], "live_chg": [null, 1, -4, 5, 0, 0, -1, 0], "cpc_avg": [3938, 3526, null, 4000, 7150, 2735, 6396.67, 7910], "cpc_avg_chg": [null, -412, -3526, 4000, 3150, -4415, 3661.67, 1513.33], "imp": [1, 1, null, 1, 1, 1, 1, 1], "cpc": [19690, 17630, null, 4000, 7150, 5470, 19190, 7910]}}, {"charge": "Lyn", "id": "7238", "name": "디유성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [16, 16, 16, 17, 17, 17, 17, 17], "live_chg": [null, 0, 0, 1, 0, 0, 0, 0], "cpc_avg": [5041.43, 3742.86, 3864.29, 5657.14, 8182.86, 4121.43, 6304.29, 5506.67], "cpc_avg_chg": [null, -1298.57, 121.43, 1792.86, 2525.71, -4061.43, 2182.86, -797.62], "imp": [6, 6, 6, 6, 6, 6, 6, 5], "cpc": [35290, 26200, 27050, 39600, 57280, 28850, 44130, 33040]}}, {"charge": "Lyn", "id": "7413", "name": "더이뻐의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [3, 3, 4, 4, 3, 3, 6, 7], "live_chg": [null, 0, 1, 0, -1, 0, 3, 1], "cpc_avg": [77807.14, 34900, 51356.67, 52260, 51850, 51175.71, 49745.71, 36060], "cpc_avg_chg": [null, -42907.14, 16456.67, 903.33, -410, -674.29, -1430, -13685.71], "imp": [1, 1, 1, 1, 1, 1, 2, 1], "cpc": [544650, 34900, 308140, 52260, 207400, 358230, 348220, 108180]}}, {"charge": "Lyn", "id": "7783", "name": "르제이의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 1, 1, 0, 1, 1, 1, 1], "live_chg": [null, 1, 0, -1, 1, 0, 0, 0], "cpc_avg": [null, 77742.5, 50370, null, 5850, 5633.33, 11870, 1160], "cpc_avg_chg": [null, 77742.5, -27372.5, -50370, 5850, -216.67, 6236.67, -10710], "imp": [null, 1, 1, null, 1, 1, 1, 1], "cpc": [null, 310970, 201480, null, 5850, 16900, 11870, 1160]}}, {"charge": "Lyn", "id": "7826", "name": "제이필의원-홍대점", "tier": "1", "district": "비강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 0, 0, 17], "live_chg": [null, 0, 0, 0, 0, 0, 0, 17], "cpc_avg": [null, null, null, null, null, null, null, 41158.33], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 0, 41158.33], "imp": [null, null, null, null, null, null, null, 1], "cpc": [null, null, null, null, null, null, null, 246950]}}, {"charge": "Runa", "id": "166", "name": "에이트성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 37, 37, 35, 35, 35, 35], "live_chg": [null, 0, 37, 0, -2, 0, 0, 0], "cpc_avg": [null, null, 221980, 491727.5, 632208, 607092.86, 636401.43, 733510], "cpc_avg_chg": [null, 0, 221980, 269747.5, 140480.5, -25115.14, 29308.57, 97108.57], "imp": [null, null, 5, 5, 6, 6, 6, 6], "cpc": [null, null, 665940, 1966910, 3161040, 4249650, 4454810, 5134570]}}, {"charge": "Runa", "id": "248", "name": "유노성형외과", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [28, 29, 29, 30, 31, 31, 30, 31], "live_chg": [null, 1, 0, 1, 1, 0, -1, 1], "cpc_avg": [123027.14, 123620, 125448.57, 118218.57, 114510, 119827.14, 126700, 118045.71], "cpc_avg_chg": [null, 592.86, 1828.57, -7230, -3708.57, 5317.14, 6872.86, -8654.29], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [861190, 865340, 878140, 827530, 801570, 838790, 886900, 826320]}}, {"charge": "Runa", "id": "398", "name": "기린성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [73, 70, 70, 73, 73, 71, 71, 71], "live_chg": [null, -3, 0, 3, 0, -2, 0, 0], "cpc_avg": [154784.29, 144934.29, 158797.14, 138151.43, 126648.57, 197035.71, 220364.29, 259951.43], "cpc_avg_chg": [null, -9850, 13862.86, -20645.71, -11502.86, 70387.14, 23328.57, 39587.14], "imp": [2, 2, 3, 3, 3, 3, 3, 3], "cpc": [1083490, 1014540, 1111580, 967060, 886540, 1379250, 1542550, 1819660]}}, {"charge": "Runa", "id": "601", "name": "클래시성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [9, 9, 9, 9, 9, 9, 9, 9], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [4813.33, 4735, 6190, 4615, 2656, 6175.71, 5007.14, 3696.67], "cpc_avg_chg": [null, -78.33, 1455, -1575, -1959, 3519.71, -1168.57, -1310.48], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [14440, 18940, 24760, 18460, 13280, 43230, 35050, 22180]}}, {"charge": "Runa", "id": "802", "name": "모즈의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [13, 13, 13, 14, 13, 13, 13, 12], "live_chg": [null, 0, 0, 1, -1, 0, 0, -1], "cpc_avg": [33157.14, 221578.57, 337821.43, 317928.57, 338622.86, 124301.43, 111231.43, 48602.86], "cpc_avg_chg": [null, 188421.43, 116242.86, -19892.86, 20694.29, -214321.43, -13070, -62628.57], "imp": [6, 7, 8, 8, 8, 7, 7, 7], "cpc": [232100, 1551050, 2364750, 2225500, 2370360, 870110, 778620, 340220]}}, {"charge": "Runa", "id": "887", "name": "디자인성형외과의원", "tier": "1", "district": "부산", "hgroup": "정식입점", "series": {"live": [8, 9, 11, 13, 13, 15, 15, 12], "live_chg": [null, 1, 2, 2, 0, 2, 0, -3], "cpc_avg": [13907.14, 22000, 36300, 36535.71, 29228.57, 21450, 24121.43, 23807.14], "cpc_avg_chg": [null, 8092.86, 14300, 235.71, -7307.14, -7778.57, 2671.43, -314.29], "imp": [4, 4, 5, 5, 6, 5, 5, 5], "cpc": [97350, 154000, 254100, 255750, 204600, 150150, 168850, 166650]}}, {"charge": "Runa", "id": "1849", "name": "나세르의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [8, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, -1, 0, 0, 0, 0, 0, 0], "cpc_avg": [21546, 21810, 22808, 29138.33, 39108.33, 37728.33, 39388.33, 34421.67], "cpc_avg_chg": [null, 264, 998, 6330.33, 9970.0, -1380, 1660, -4966.67], "imp": [1, 1, 1, 2, 2, 2, 2, 2], "cpc": [107730, 109050, 114040, 174830, 234650, 226370, 236330, 206530]}}, {"charge": "Runa", "id": "1860", "name": "우리성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [47, 47, 47, 47, 47, 47, 47, 47], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [442217.5, 622845, 610752.5, 615217.5, 626266, 437330, 601706.67, 578817.5], "cpc_avg_chg": [null, 180627.5, -12092.5, 4465, 11048.5, -188936, 164376.67, -22889.17], "imp": [6, 6, 6, 6, 6, 6, 6, 6], "cpc": [1768870, 2491380, 2443010, 2460870, 3131330, 2186650, 1805120, 2315270]}}, {"charge": "Runa", "id": "1982", "name": "미케이의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [28, 28, 29, 29, 30, 29, 29, 29], "live_chg": [null, 0, 1, 0, 1, -1, 0, 0], "cpc_avg": [1140, 1270, 1187.14, 1891.43, 1235, 1501.67, 1260, 1164.29], "cpc_avg_chg": [null, 130, -82.86, 704.29, -656.43, 266.67, -241.67, -95.71], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [5700, 7620, 8310, 13240, 7410, 9010, 7560, 8150]}}, {"charge": "Runa", "id": "2140", "name": "갤럭시성형외과의원", "tier": "1", "district": "부산", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 0, 63, 63], "live_chg": [null, 0, 0, 0, 0, 0, 63, 0], "cpc_avg": [null, null, null, null, null, null, 4766.67, 11314.29], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 4766.67, 6547.62], "imp": [null, null, null, null, null, null, 2, 4], "cpc": [null, null, null, null, null, null, 28600, 79200]}}, {"charge": "Runa", "id": "2186", "name": "노트성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 15, 13, 17, 17, 15, 15, 15], "live_chg": [null, 15, -2, 4, 0, -2, 0, 0], "cpc_avg": [null, 77100, 135898.57, 98054.29, 94592.86, 71484.29, 55821.43, 35788.57], "cpc_avg_chg": [null, 77100, 58798.57, -37844.29, -3461.43, -23108.57, -15662.86, -20032.86], "imp": [null, 2, 2, 2, 2, 2, 2, 2], "cpc": [null, 308400, 951290, 686380, 662150, 500390, 390750, 250520]}}, {"charge": "Runa", "id": "2221", "name": "리스펙성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [18, 18, 18, 18, 18, 18, 18, 18], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [33188.57, 27965, 61817.14, 58096.67, 66694.29, 81601.43, 99297.14, 62217.14], "cpc_avg_chg": [null, -5223.57, 33852.14, -3720.48, 8597.62, 14907.14, 17695.71, -37080], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [232320, 167790, 432720, 348580, 466860, 571210, 695080, 435520]}}, {"charge": "Runa", "id": "2681", "name": "메이필의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [27, 28, 0, 0, 0, 0, 0, 0], "live_chg": [null, 1, -28, 0, 0, 0, 0, 0], "cpc_avg": [139317.5, 128800, null, null, null, null, null, null], "cpc_avg_chg": [null, -10517.5, -128800, 0, 0, 0, 0, 0], "imp": [1, 1, null, null, null, null, null, null], "cpc": [557270, 257600, null, null, null, null, null, null]}}, {"charge": "Runa", "id": "2700", "name": "서울아이성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [73, 74, 75, 75, 77, 77, 77, 76], "live_chg": [null, 1, 1, 0, 2, 0, 0, -1], "cpc_avg": [348862.86, 349958.57, 329787.14, 321018.57, 317092.86, 328302.86, 282375.71, 252142.86], "cpc_avg_chg": [null, 1095.71, -20171.43, -8768.57, -3925.71, 11210, -45927.14, -30232.86], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [2442040, 2449710, 2308510, 2247130, 2219650, 2298120, 1976630, 1765000]}}, {"charge": "Runa", "id": "2991", "name": "플레저성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [24, 24, 24, 24, 24, 25, 25, 25], "live_chg": [null, 0, 0, 0, 0, 1, 0, 0], "cpc_avg": [133850, 130432.86, 134791.43, 137422.86, 125884.29, 61710, 118307.14, 162358.57], "cpc_avg_chg": [null, -3417.14, 4358.57, 2631.43, -11538.57, -64174.29, 56597.14, 44051.43], "imp": [4, 4, 4, 4, 4, 7, 4, 3], "cpc": [936950, 913030, 943540, 961960, 881190, 431970, 828150, 1136510]}}, {"charge": "Runa", "id": "3084", "name": "아이노유성형외과의원", "tier": "1", "district": "부산", "hgroup": "정식입점", "series": {"live": [17, 17, 17, 17, 17, 17, 17, 17], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [8591.43, 9310, 11268.57, 8268.57, 7348.57, 8441.43, 6877.14, 6785.71], "cpc_avg_chg": [null, 718.57, 1958.57, -3000, -920.0, 1092.86, -1564.29, -91.43], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [60140, 65170, 78880, 57880, 51440, 59090, 48140, 47500]}}, {"charge": "Runa", "id": "3505", "name": "히트성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [15, 6, 6, 6, 6, 6, 7, 7], "live_chg": [null, -9, 0, 0, 0, 0, 1, 0], "cpc_avg": [1070211.43, 925978.57, 1012861.43, 1013154.29, 1010004.29, 853760, 981622.86, 1009342.86], "cpc_avg_chg": [null, -144232.86, 86882.86, 292.86, -3150, -156244.29, 127862.86, 27720], "imp": [3, 2, 2, 2, 2, 2, 2, 2], "cpc": [7491480, 6481850, 7090030, 7092080, 7070030, 5976320, 6871360, 7065400]}}, {"charge": "Runa", "id": "3742", "name": "픽셀랩성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 9, 9, 9, 9, 10, 10, 10], "live_chg": [null, 9, 0, 0, 0, 1, 0, 0], "cpc_avg": [null, 4710, 15936, 19308, 14838, 23126, 29800, 12258], "cpc_avg_chg": [null, 4710, 11226, 3372, -4470, 8288, 6674, -17542], "imp": [null, 2, 2, 2, 2, 2, 2, 2], "cpc": [null, 4710, 79680, 96540, 74190, 115630, 119200, 61290]}}, {"charge": "Runa", "id": "4213", "name": "올리팅성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [24, 24, 26, 29, 28, 28, 29, 29], "live_chg": [null, 0, 2, 3, -1, 0, 1, 0], "cpc_avg": [221730, 214271.43, 201874.29, 191992.86, 189737.14, 203015.71, 171381.43, 168360], "cpc_avg_chg": [null, -7458.57, -12397.14, -9881.43, -2255.71, 13278.57, -31634.29, -3021.43], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [1552110, 1499900, 1413120, 1343950, 1328160, 1421110, 1199670, 1178520]}}, {"charge": "Runa", "id": "4508", "name": "우리엘의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [146008.57, 127272.86, 99087.14, 99507.14, 104828.57, 127281.43, 95825.71, 68078.57], "cpc_avg_chg": [null, -18735.71, -28185.71, 420, 5321.43, 22452.86, -31455.71, -27747.14], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [1022060, 890910, 693610, 696550, 733800, 890970, 670780, 476550]}}, {"charge": "Runa", "id": "5275", "name": "로얄라인의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 0, 0, 0, 0], "live_chg": [null, 0, 0, 0, -5, 0, 0, 0], "cpc_avg": [51501.43, 51368.57, 51892.86, 48620, null, null, null, null], "cpc_avg_chg": [null, -132.86, 524.29, -3272.86, -48620, 0, 0, 0], "imp": [1, 1, 1, 1, null, null, null, null], "cpc": [360510, 359580, 363250, 97240, null, null, null, null]}}, {"charge": "Runa", "id": "5475", "name": "롤리팝성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [10, 10, 10, 10, 10, 10, 10, 10], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [214765.71, 251551.43, 190085.71, 159732.86, 171291.43, 230152.86, 255121.43, 263441.43], "cpc_avg_chg": [null, 36785.71, -61465.71, -30352.86, 11558.57, 58861.43, 24968.57, 8320], "imp": [6, 6, 6, 6, 6, 6, 6, 6], "cpc": [1503360, 1760860, 1330600, 1118130, 1199040, 1611070, 1785850, 1844090]}}, {"charge": "Runa", "id": "5525", "name": "청담마이의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [9, 9, 9, 9, 9, 9, 9, 9], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [111945.71, 112718.57, 97840, 92697.14, 91121.43, 94478.57, 85697.14, 75331.43], "cpc_avg_chg": [null, 772.86, -14878.57, -5142.86, -1575.71, 3357.14, -8781.43, -10365.71], "imp": [7, 7, 7, 7, 7, 7, 7, 7], "cpc": [783620, 789030, 684880, 648880, 637850, 661350, 599880, 527320]}}, {"charge": "Runa", "id": "6754", "name": "미미썸의원-부산덕천점", "tier": "2", "district": "부산", "hgroup": "정식입점", "series": {"live": [22, 22, 22, 22, 23, 23, 23, 23], "live_chg": [null, 0, 0, 0, 1, 0, 0, 0], "cpc_avg": [6678.57, 6678.57, 5500, 4007.14, 4635.71, 4085.71, 3064.29, 2671.43], "cpc_avg_chg": [null, 0, -1178.57, -1492.86, 628.57, -550.0, -1021.43, -392.86], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [46750, 46750, 38500, 28050, 32450, 28600, 21450, 18700]}}, {"charge": "Runa", "id": "7461", "name": "비티큐의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [3, 5, 6, 6, 6, 9, 6, 6], "live_chg": [null, 2, 1, 0, 0, 3, -3, 0], "cpc_avg": [158962.86, 201494.29, 319295.71, 166467.14, 123135.71, 104308.57, 108351.43, 116545.71], "cpc_avg_chg": [null, 42531.43, 117801.43, -152828.57, -43331.43, -18827.14, 4042.86, 8194.29], "imp": [2, 6, 6, 6, 6, 6, 4, 2], "cpc": [1112740, 1410460, 2235070, 1165270, 861950, 730160, 758460, 815820]}}, {"charge": "Runa", "id": "7635", "name": "라이즈성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [4, 4, 4, 5, 5, 5, 5, 5], "live_chg": [null, 0, 0, 1, 0, 0, 0, 0], "cpc_avg": [25615.71, 24977.14, 30651.43, 26841.43, 27114.29, 27791.43, 34218.57, 57235.71], "cpc_avg_chg": [null, -638.57, 5674.29, -3810, 272.86, 677.14, 6427.14, 23017.14], "imp": [1, 1, 2, 2, 2, 2, 2, 2], "cpc": [179310, 174840, 214560, 187890, 189800, 194540, 239530, 400650]}}, {"charge": "Runa", "id": "7657", "name": "새로운성형외과의원", "tier": "2", "district": "부산", "hgroup": "정식입점", "series": {"live": [16, 16, 16, 16, 16, 16, 16, 17], "live_chg": [null, 0, 0, 0, 0, 0, 0, 1], "cpc_avg": [15557.14, 13828.57, 15871.43, 17835.71, 17442.86, 15007.14, 11785.71, 12807.14], "cpc_avg_chg": [null, -1728.57, 2042.86, 1964.29, -392.86, -2435.71, -3221.43, 1021.43], "imp": [7, 7, 7, 8, 8, 8, 8, 8], "cpc": [108900, 96800, 111100, 124850, 122100, 105050, 82500, 89650]}}, {"charge": "Runa", "id": "7685", "name": "리프트리성형외과의원", "tier": "2", "district": "부산", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 17, 18, 19, 19], "live_chg": [null, 0, 0, 0, 17, 1, 1, 0], "cpc_avg": [null, null, null, null, 69652.86, 73387.14, 77692.86, 72745.71], "cpc_avg_chg": [null, 0, 0, 0, 69652.86, 3734.29, 4305.71, -4947.14], "imp": [null, null, null, null, 9, 10, 8, 8], "cpc": [null, null, null, null, 487570, 513710, 543850, 509220]}}, {"charge": "Runa", "id": "8131", "name": "더나의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [15, 15, 15, 15, 16, 16, 17, 16], "live_chg": [null, 0, 0, 0, 1, 0, 1, -1], "cpc_avg": [150771.43, 141017.14, 85508.57, 91707.14, 86832.86, 61488.57, 44232.86, 89245.71], "cpc_avg_chg": [null, -9754.29, -55508.57, 6198.57, -4874.29, -25344.29, -17255.71, 45012.86], "imp": [2, 2, 3, 2, 3, 4, 1, 3], "cpc": [1055400, 987120, 598560, 641950, 607830, 430420, 309630, 624720]}}, {"charge": "Runa", "id": "8341", "name": "모린의원-부산서면점", "tier": "2", "district": "부산", "hgroup": "정식입점", "series": {"live": [2, 3, 3, 0, 0, 3, 0, 0], "live_chg": [null, 1, 0, -3, 0, 3, -3, 0], "cpc_avg": [550, 35907.14, 35750, null, null, 22550, null, null], "cpc_avg_chg": [null, 35357.14, -157.14, -35750, 0, 22550, -22550, 0], "imp": [2, 3, 3, null, null, 1, null, null], "cpc": [1100, 251350, 214500, null, null, 22550, null, null]}}, {"charge": "Ryan", "id": "8058", "name": "리제로의원", "tier": "2", "district": "부산", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 0, 9, 9], "live_chg": [null, 0, 0, 0, 0, 0, 9, 0], "cpc_avg": [null, null, null, null, null, null, 14457.14, 18935.71], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 14457.14, 4478.57], "imp": [null, null, null, null, null, null, 1, 1], "cpc": [null, null, null, null, null, null, 101200, 132550]}}, {"charge": "Ryan", "id": "8126", "name": "압구정리앤스타의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 43, 43, 45, 0, 46, 46, 46], "live_chg": [null, 43, 0, 2, -45, 46, 0, 0], "cpc_avg": [null, 20402.5, 51538.57, 52367.5, null, 64361.67, 71434.29, 70960], "cpc_avg_chg": [null, 20402.5, 31136.07, 828.93, -52367.5, 64361.67, 7072.62, -474.29], "imp": [null, 2, 2, 2, null, 2, 2, 3], "cpc": [null, 81610, 360770, 209470, null, 386170, 500040, 496720]}}, {"charge": "Winnie", "id": "46", "name": "플라덴성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [12, 12, 11, 11, 11, 11, 11, 11], "live_chg": [null, 0, -1, 0, 0, 0, 0, 0], "cpc_avg": [2265.71, 0, 41365.71, 7490, 20517.14, 69757.14, 2254.29, 2484.29], "cpc_avg_chg": [null, -2265.71, 41365.71, -33875.71, 13027.14, 49240, -67502.86, 230], "imp": [4, 4, 4, 2, 2, 2, 1, 1], "cpc": [15860, 0, 289560, 52430, 143620, 488300, 15780, 17390]}}, {"charge": "Winnie", "id": "54", "name": "글로비성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 16, 16, 16, 0, 0, 0], "live_chg": [null, 0, 16, 0, 0, -16, 0, 0], "cpc_avg": [null, null, 126420, 84467.5, 45300, null, null, null], "cpc_avg_chg": [null, 0, 126420, -41952.5, -39167.5, -45300, 0, 0], "imp": [null, null, 4, 3, 2, null, null, null], "cpc": [null, null, 379260, 337870, 90600, null, null, null]}}, {"charge": "Winnie", "id": "129", "name": "압구정탑라인의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 5, 6, 5, 5, 5], "live_chg": [null, 0, 0, 5, 1, -1, 0, 0], "cpc_avg": [null, null, null, 81017.5, 117452.86, 125782.86, 119398.57, 122151.43], "cpc_avg_chg": [null, 0, 0, 81017.5, 36435.36, 8330, -6384.29, 2752.86], "imp": [null, null, null, 2, 2, 3, 3, 2], "cpc": [null, null, null, 324070, 822170, 880480, 835790, 855060]}}, {"charge": "Winnie", "id": "226", "name": "쿠키성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [4, 4, 4, 4, 4, 4, 5, 4], "live_chg": [null, 0, 0, 0, 0, 0, 1, -1], "cpc_avg": [6065.71, 4055.71, 5948.57, 3432.86, 1815.71, 2831.43, 2850, 2821.43], "cpc_avg_chg": [null, -2010.0, 1892.86, -2515.71, -1617.14, 1015.71, 18.57, -28.57], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [42460, 28390, 41640, 24030, 12710, 19820, 19950, 19750]}}, {"charge": "Winnie", "id": "239", "name": "연세리즈의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [18, 18, 18, 18, 18, 18, 18, 18], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [243961.43, 170315.71, 183148.57, 164625.71, 173707.14, 145142.86, 152800, 191361.43], "cpc_avg_chg": [null, -73645.71, 12832.86, -18522.86, 9081.43, -28564.29, 7657.14, 38561.43], "imp": [7, 7, 7, 7, 7, 7, 7, 7], "cpc": [1707730, 1192210, 1282040, 1152380, 1215950, 1016000, 1069600, 1339530]}}, {"charge": "Winnie", "id": "300", "name": "에이탑성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [65, 65, 67, 67, 67, 67, 68, 69], "live_chg": [null, 0, 2, 0, 0, 0, 1, 1], "cpc_avg": [1029697.14, 960061.43, 971264.29, 868817.14, 703651.43, 641388.57, 641860, 550787.14], "cpc_avg_chg": [null, -69635.71, 11202.86, -102447.14, -165165.71, -62262.86, 471.43, -91072.86], "imp": [14, 14, 14, 14, 13, 13, 11, 11], "cpc": [7207880, 6720430, 6798850, 6081720, 4925560, 4489720, 4493020, 3855510]}}, {"charge": "Winnie", "id": "320", "name": "에르네의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 15, 0, 0], "live_chg": [null, 0, 0, 0, 0, 15, -15, 0], "cpc_avg": [null, null, null, null, null, 0, null, null], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 0, 0], "imp": [null, null, null, null, null, 0, null, null], "cpc": [null, null, null, null, null, 0, null, null]}}, {"charge": "Winnie", "id": "355", "name": "모래시계의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [100672.86, 98438.57, 110377.14, 163504.29, 171232.86, 177410, 115406.67, 99272.5], "cpc_avg_chg": [null, -2234.29, 11938.57, 53127.14, 7728.57, 6177.14, -62003.33, -16134.17], "imp": [2, 2, 3, 3, 3, 3, 3, 1], "cpc": [704710, 689070, 772640, 1144530, 1198630, 1241870, 346220, 397090]}}, {"charge": "Winnie", "id": "377", "name": "리버스의원-강남점", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [37, 37, 36, 36, 36, 40, 38, 38], "live_chg": [null, 0, -1, 0, 0, 4, -2, 0], "cpc_avg": [36078.57, 31921.43, 27067.14, 25582.86, 29191.43, 35790, 36350, 35621.43], "cpc_avg_chg": [null, -4157.14, -4854.29, -1484.29, 3608.57, 6598.57, 560, -728.57], "imp": [5, 5, 5, 3, 5, 5, 5, 5], "cpc": [252550, 223450, 189470, 179080, 204340, 250530, 181750, 249350]}}, {"charge": "Winnie", "id": "379", "name": "리버스의원-인천점", "tier": "1", "district": "인천", "hgroup": "정식입점", "series": {"live": [36, 36, 35, 34, 35, 37, 37, 37], "live_chg": [null, 0, -1, -1, 1, 2, 0, 0], "cpc_avg": [27124.29, 27760, 23504.29, 20507.14, 23665.71, 26090, 21791.43, 25491.43], "cpc_avg_chg": [null, 635.71, -4255.71, -2997.14, 3158.57, 2424.29, -4298.57, 3700], "imp": [9, 9, 9, 9, 9, 9, 9, 9], "cpc": [189870, 194320, 164530, 143550, 165660, 182630, 152540, 178440]}}, {"charge": "Winnie", "id": "431", "name": "PR성형외과(피알성형외과)", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [3, 3, 3, 3, 3, 0, 3, 3], "live_chg": [null, 0, 0, 0, 0, -3, 3, 0], "cpc_avg": [1773.33, 1025, 940, 950, 920, null, 780, 900], "cpc_avg_chg": [null, -748.33, -85, 10, -30, -920, 780, 120], "imp": [1, 1, 1, 1, 1, null, 1, 1], "cpc": [5320, 4100, 940, 2850, 920, null, 1560, 1800]}}, {"charge": "Winnie", "id": "542", "name": "바탕성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [18, 18, 18, 18, 18, 18, 18, 18], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [248637.14, 344770, 190144.29, 79141.43, 85825.71, 101298.57, 96395.71, 84761.43], "cpc_avg_chg": [null, 96132.86, -154625.71, -111002.86, 6684.29, 15472.86, -4902.86, -11634.29], "imp": [5, 7, 7, 2, 1, 2, 1, 1], "cpc": [1740460, 2413390, 1331010, 553990, 600780, 709090, 674770, 593330]}}, {"charge": "Winnie", "id": "611", "name": "브이성형외과의원", "tier": "1", "district": "대구", "hgroup": "정식입점", "series": {"live": [0, 0, 22, 22, 22, 22, 22, 22], "live_chg": [null, 0, 22, 0, 0, 0, 0, 0], "cpc_avg": [null, null, 2282, 15430, 17780, 20907.14, 17748.57, 31182.86], "cpc_avg_chg": [null, 0, 2282, 13148, 2350, 3127.14, -3158.57, 13434.29], "imp": [null, null, 4, 6, 7, 7, 7, 8], "cpc": [null, null, 11410, 77150, 124460, 146350, 124240, 218280]}}, {"charge": "Winnie", "id": "660", "name": "루호성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [14, 14, 13, 14, 14, 14, 14, 14], "live_chg": [null, 0, -1, 1, 0, 0, 0, 0], "cpc_avg": [138288.57, 342512.86, 516588.57, 635965.71, 324760, 401898.57, 283120, 491135.71], "cpc_avg_chg": [null, 204224.29, 174075.71, 119377.14, -311205.71, 77138.57, -118778.57, 208015.71], "imp": [2, 2, 3, 3, 3, 2, 2, 3], "cpc": [968020, 2397590, 3616120, 4451760, 2273320, 2813290, 1981840, 3437950]}}, {"charge": "Winnie", "id": "678", "name": "볼륨성형외과", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [5, 6, 6, 6, 6, 6, 6, 6], "live_chg": [null, 1, 0, 0, 0, 0, 0, 0], "cpc_avg": [10048.57, 8602.86, 8611.43, 8391.43, 7165.71, 4842.86, 9868.57, 17667.14], "cpc_avg_chg": [null, -1445.71, 8.57, -220, -1225.71, -2322.86, 5025.71, 7798.57], "imp": [3, 3, 3, 3, 3, 3, 3, 3], "cpc": [70340, 60220, 60280, 58740, 50160, 33900, 69080, 123670]}}, {"charge": "Winnie", "id": "794", "name": "한나이브성형외과의원", "tier": "1", "district": "경기", "hgroup": "정식입점", "series": {"live": [11, 11, 11, 12, 13, 12, 13, 14], "live_chg": [null, 0, 0, 1, 1, -1, 1, 1], "cpc_avg": [212441.43, 226320, 57300, 174860, 123312, 153217.14, 39885.71, 47795.71], "cpc_avg_chg": [null, 13878.57, -169020, 117560, -51548, 29905.14, -113331.43, 7910], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [1487090, 1584240, 57300, 349720, 616560, 1072520, 279200, 334570]}}, {"charge": "Winnie", "id": "938", "name": "나나성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [42, 43, 43, 43, 43, 43, 43, 44], "live_chg": [null, 1, 0, 0, 0, 0, 0, 1], "cpc_avg": [1940515.71, 1956277.14, 2175514.29, 2271141.43, 2195007.14, 1877232.86, 1844072.86, 1768358.57], "cpc_avg_chg": [null, 15761.43, 219237.14, 95627.14, -76134.29, -317774.29, -33160, -75714.29], "imp": [9, 8, 8, 8, 8, 7, 7, 7], "cpc": [13583610, 13693940, 15228600, 15897990, 15365050, 13140630, 12908510, 12378510]}}, {"charge": "Winnie", "id": "2296", "name": "리버스의원-일산점", "tier": "1", "district": "경기", "hgroup": "정식입점", "series": {"live": [35, 35, 36, 36, 37, 37, 37, 37], "live_chg": [null, 0, 1, 0, 1, 0, 0, 0], "cpc_avg": [19877.14, 17331.43, 19102.86, 12205.71, 19068.57, 14440, 18804.29, 17500], "cpc_avg_chg": [null, -2545.71, 1771.43, -6897.14, 6862.86, -4628.57, 4364.29, -1304.29], "imp": [9, 8, 8, 7, 8, 8, 7, 7], "cpc": [139140, 121320, 133720, 85440, 133480, 101080, 131630, 122500]}}, {"charge": "Winnie", "id": "3090", "name": "플래너성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [37, 37, 37, 37, 37, 37, 37, 37], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [28357.14, 26872.86, 23717.14, 22510, 17131.43, 18230, 25557.14, 40441.67], "cpc_avg_chg": [null, -1484.29, -3155.71, -1207.14, -5378.57, 1098.57, 7327.14, 14884.52], "imp": [10, 10, 10, 11, 10, 9, 10, 10], "cpc": [198500, 188110, 166020, 157570, 119920, 127610, 178900, 242650]}}, {"charge": "Winnie", "id": "3170", "name": "신상성형외과의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [19, 19, 20, 20, 0, 27, 26, 27], "live_chg": [null, 0, 1, 0, -20, 27, -1, 1], "cpc_avg": [250974.29, 312022.86, 338261.43, 296068, null, 2980, 3372.5, 2366], "cpc_avg_chg": [null, 61048.57, 26238.57, -42193.43, -296068, 2980, 392.5, -1006.5], "imp": [2, 2, 2, 2, null, 1, 1, 1], "cpc": [1756820, 2184160, 2367830, 1480340, null, 2980, 13490, 11830]}}, {"charge": "Winnie", "id": "3395", "name": "아너스티성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [36, 36, 36, 36, 36, 36, 37, 37], "live_chg": [null, 0, 0, 0, 0, 0, 1, 0], "cpc_avg": [117998.57, 119498.57, 110008.57, 113231.43, 94512.86, 114455.71, 100535.71, 102481.43], "cpc_avg_chg": [null, 1500, -9490, 3222.86, -18718.57, 19942.86, -13920, 1945.71], "imp": [9, 9, 10, 9, 10, 11, 11, 11], "cpc": [825990, 836490, 770060, 792620, 661590, 801190, 703750, 717370]}}, {"charge": "Winnie", "id": "4216", "name": "투비성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 0, 0, 0, 0, 4], "live_chg": [null, 0, 0, 0, 0, 0, 0, 4], "cpc_avg": [null, null, null, null, null, null, null, 14993.33], "cpc_avg_chg": [null, 0, 0, 0, 0, 0, 0, 14993.33], "imp": [null, null, null, null, null, null, null, 1], "cpc": [null, null, null, null, null, null, null, 89960]}}, {"charge": "Winnie", "id": "4486", "name": "심포니성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [20, 20, 20, 20, 20, 20, 20, 20], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [54038.57, 48862.86, 40311.43, 49790, 41788.57, 44045.71, 40304.29, 47460], "cpc_avg_chg": [null, -5175.71, -8551.43, 9478.57, -8001.43, 2257.14, -3741.43, 7155.71], "imp": [9, 9, 9, 9, 9, 9, 9, 9], "cpc": [378270, 342040, 282180, 348530, 292520, 308320, 282130, 332220]}}, {"charge": "Winnie", "id": "4493", "name": "글로비지테라안티에이징의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 0, 0, 30, 30, 0, 0, 0], "live_chg": [null, 0, 0, 30, 0, -30, 0, 0], "cpc_avg": [null, null, null, 2940, 48180, null, null, null], "cpc_avg_chg": [null, 0, 0, 2940, 45240, -48180, 0, 0], "imp": [null, null, null, 1, 1, null, null, null], "cpc": [null, null, null, 2940, 48180, null, null, null]}}, {"charge": "Winnie", "id": "4919", "name": "하이린의원", "tier": "2", "district": "대구", "hgroup": "정식입점", "series": {"live": [10, 11, 0, 0, 0, 0, 0, 0], "live_chg": [null, 1, -11, 0, 0, 0, 0, 0], "cpc_avg": [32842.86, 28050, null, null, null, null, null, null], "cpc_avg_chg": [null, -4792.86, -28050, 0, 0, 0, 0, 0], "imp": [5, 5, null, null, null, null, null, null], "cpc": [229900, 140250, null, null, null, null, null, null]}}, {"charge": "Winnie", "id": "4924", "name": "사적인아름다움지유의원-일산점", "tier": "1", "district": "경기", "hgroup": "정식입점", "series": {"live": [14, 14, 17, 19, 20, 20, 20, 20], "live_chg": [null, 0, 3, 2, 1, 0, 0, 0], "cpc_avg": [77144.29, 85407.14, 112661.43, 84275.71, 55622.86, 33554.29, 26408.57, 19157.14], "cpc_avg_chg": [null, 8262.86, 27254.29, -28385.71, -28652.86, -22068.57, -7145.71, -7251.43], "imp": [4, 5, 6, 5, 5, 5, 5, 6], "cpc": [540010, 597850, 788630, 589930, 389360, 234880, 184860, 134100]}}, {"charge": "Winnie", "id": "5225", "name": "세라의원", "tier": "2", "district": "경기", "hgroup": "정식입점", "series": {"live": [5, 5, 5, 5, 5, 5, 6, 6], "live_chg": [null, 0, 0, 0, 0, 0, 1, 0], "cpc_avg": [56682.86, 32437.14, 43184.29, 38342.86, 48992.86, 40545.71, 45868.57, 25885.71], "cpc_avg_chg": [null, -24245.71, 10747.14, -4841.43, 10650, -8447.14, 5322.86, -19982.86], "imp": [4, 4, 4, 4, 4, 4, 4, 4], "cpc": [396780, 227060, 302290, 268400, 342950, 283820, 321080, 181200]}}, {"charge": "Winnie", "id": "5801", "name": "멘토의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [7, 7, 7, 7, 7, 7, 7, 7], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [6388.57, 4498.57, 5330, 3390, 3685.71, 5638.57, 5994.29, 7421.43], "cpc_avg_chg": [null, -1890, 831.43, -1940, 295.71, 1952.86, 355.71, 1427.14], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [44720, 31490, 37310, 23730, 25800, 39470, 41960, 51950]}}, {"charge": "Winnie", "id": "6010", "name": "엔디어트의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [19, 19, 19, 19, 19, 19, 19, 19], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [35604.29, 25455.71, 18895.71, 18444.29, 22162.86, 28701.43, 34454.29, 34031.43], "cpc_avg_chg": [null, -10148.57, -6560, -451.43, 3718.57, 6538.57, 5752.86, -422.86], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [249230, 178190, 132270, 129110, 155140, 200910, 241180, 238220]}}, {"charge": "Winnie", "id": "6584", "name": "플래티넘의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [34, 35, 35, 35, 35, 35, 35, 35], "live_chg": [null, 1, 0, 0, 0, 0, 0, 0], "cpc_avg": [272285.71, 257831.43, 179744.29, 201925.71, 218320, 197994.29, 197745.71, 216990], "cpc_avg_chg": [null, -14454.29, -78087.14, 22181.43, 16394.29, -20325.71, -248.57, 19244.29], "imp": [12, 11, 11, 11, 11, 11, 11, 11], "cpc": [1906000, 1804820, 1258210, 1413480, 1528240, 1385960, 1384220, 1518930]}}, {"charge": "Winnie", "id": "6712", "name": "필앤필의원", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [12, 12, 12, 12, 12, 12, 12, 12], "live_chg": [null, 0, 0, 0, 0, 0, 0, 0], "cpc_avg": [9351.43, 8647.14, 5108.57, 2420, 3393.33, 4874.29, 6527.14, 6457.14], "cpc_avg_chg": [null, -704.29, -3538.57, -2688.57, 973.33, 1480.95, 1652.86, -70], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [65460, 60530, 35760, 12100, 20360, 34120, 45690, 45200]}}, {"charge": "Winnie", "id": "6722", "name": "드라마성형외과의원", "tier": "2", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [4, 4, 4, 4, 4, 4, 4, 0], "live_chg": [null, 0, 0, 0, 0, 0, 0, -4], "cpc_avg": [50192.5, 55100, 75595.71, 75684.29, 76263.33, 71520, 52615, null], "cpc_avg_chg": [null, 4907.5, 20495.71, 88.57, 579.05, -4743.33, -18905, -52615], "imp": [1, 1, 1, 1, 1, 1, 1, null], "cpc": [200770, 385700, 529170, 529790, 228790, 429120, 105230, null]}}, {"charge": "Winnie", "id": "6965", "name": "동탄스노우의원", "tier": "2", "district": "경기", "hgroup": "정식입점", "series": {"live": [7, 8, 8, 8, 8, 8, 8, 8], "live_chg": [null, 1, 0, 0, 0, 0, 0, 0], "cpc_avg": [5480, 4618.57, 3840, 3285.71, 3125.71, 3590, 5850, 8850], "cpc_avg_chg": [null, -861.43, -778.57, -554.29, -160, 464.29, 2260, 3000], "imp": [1, 1, 1, 1, 1, 1, 1, 1], "cpc": [38360, 32330, 26880, 23000, 21880, 25130, 40950, 61950]}}, {"charge": "Winnie", "id": "7493", "name": "테이아의원-강남본점", "tier": "1", "district": "강남서초", "hgroup": "정식입점", "series": {"live": [0, 3, 3, 3, 3, 4, 4, 4], "live_chg": [null, 3, 0, 0, 0, 1, 0, 0], "cpc_avg": [null, 161433.33, 759467.14, 920734.29, 971420, 877668.57, 1095290, 1050151.43], "cpc_avg_chg": [null, 161433.33, 598033.81, 161267.14, 50685.71, -93751.43, 217621.43, -45138.57], "imp": [null, 1, 3, 2, 3, 3, 3, 4], "cpc": [null, 484300, 5316270, 6445140, 6799940, 6143680, 7667030, 7351060]}}], "charges": ["Ace", "Hardy", "Lyn", "Runa", "Ryan", "Winnie"], "tiers": ["1", "2"], "districts": ["강남서초", "경기", "대구", "부산", "비강남서초", "인천"]}</script>
+<script>
+const DB = JSON.parse(document.getElementById('DATA').textContent);
+const W = DB.weeks, LAST = W.length-1;
+document.getElementById('totalN').textContent = DB.hospitals.length;
+
+// 주차 라벨(예: '07/20' -> '7/20') · LW=최신주, PW=직전주, MW=4주전
+const wlabel = s => s.split('/').map(n=>String(+n)).join('/');
+const LW=wlabel(W[LAST]), PW=wlabel(W[LAST-1]), MW=wlabel(W[LAST-4]);
+const RANGE=`${wlabel(W[0])} ~ ${wlabel(W[LAST])}`;
+
+const metricLabel = {cpc_avg:'일평균 CPC매출액', cpc:'CPC매출액(주간)', imp:'CPC 노출이벤트수', live:'라이브이벤트수'};
+const won = n => n==null ? '-' : Math.round(n).toLocaleString('ko-KR');
+const signColor = d => d>0?'up':(d<0?'down':'flat');
+const arrow = d => d>0?'▲':(d<0?'▼':'—');
+
+function fill(id, arr, fmt){const s=document.getElementById(id);arr.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=fmt?fmt(v):v;s.appendChild(o);});}
+fill('fCharge', DB.charges);
+fill('fTier', DB.tiers, v=>'티어 '+v);
+fill('fDistrict', DB.districts);
+
+const state = {tab:'trend', metric:'cpc_avg', sort:'wow_desc', alertMetric:'imp', dir:'all', selMgr:null, chartFocus:null};
+const charts = {};
+
+function lastVals(arr){
+  let li=null, pi=null;
+  for(let i=arr.length-1;i>=0;i--){if(arr[i]!=null){if(li===null){li=i;}else{pi=i;break;}}}
+  const lv = li!=null?arr[li]:null;
+  const pv = pi!=null?arr[pi]:null;
+  const delta = (lv!=null&&pv!=null)?lv-pv:null;
+  const pct = (delta!=null&&pv)?(delta/Math.abs(pv)*100):null;
+  return {lv,pv,delta,pct};
+}
+// nearest non-null value at or before idx (going backward)
+function pointAt(arr, idx){
+  for(let i=Math.min(idx,arr.length-1);i>=0;i--){ if(arr[i]!=null) return arr[i]; }
+  return null;
+}
+// WoW (지난주 대비) + MoM (4주 전=지난달 대비)
+function deltas(arr){
+  arr = arr||[];
+  const cur = pointAt(arr, arr.length-1);
+  const wk  = pointAt(arr, arr.length-2);   // 1주 전
+  const mo  = pointAt(arr, arr.length-5);   // 4주 전(≈지난달)
+  const wow = (cur!=null&&wk!=null)?cur-wk:null;
+  const mom = (cur!=null&&mo!=null)?cur-mo:null;
+  return {cur, wow, mom,
+    wowPct:(wow!=null&&wk)?wow/Math.abs(wk)*100:null,
+    momPct:(mom!=null&&mo)?mom/Math.abs(mo)*100:null};
+}
+
+function filtered(){
+  const c=document.getElementById('fCharge').value,
+        t=document.getElementById('fTier').value,
+        d=document.getElementById('fDistrict').value,
+        q=document.getElementById('fSearch').value.trim().toLowerCase();
+  return DB.hospitals.filter(h=>
+    (!c||h.charge===c)&&(!t||h.tier===t)&&(!d||h.district===d)&&
+    (!q||(h.name||'').toLowerCase().includes(q)));
+}
+
+function renderTrend(){
+  const grid=document.getElementById('grid');
+  Object.values(charts).forEach(ch=>ch.destroy()); for(const k in charts)delete charts[k];
+  grid.innerHTML='';
+  let list=filtered().map(h=>({h, d:deltas(h.series[state.metric])}));
+  const s=state.sort;
+  const basis = s.startsWith('mom') ? (x=>x.d.mom) : (x=>x.d.wow);
+  list.sort((a,b)=>{
+    if(s==='name')return (a.h.name||'').localeCompare(b.h.name||'','ko');
+    if(s==='latest_desc')return (b.d.cur??-1e18)-(a.d.cur??-1e18);
+    const av=basis(a)??0, bv=basis(b)??0;
+    return s.endsWith('_asc')? av-bv : bv-av;
+  });
+  document.getElementById('count').textContent = list.length+'개 표시';
+  if(!list.length){grid.innerHTML='<div class="empty">조건에 맞는 병원이 없습니다.</div>';return;}
+
+  list.forEach((item,idx)=>{
+    const h=item.h, sr=h.series, {cur,wow,mom,wowPct,momPct}=item.d;
+    const impV=lastVals(sr.imp), liveV=lastVals(sr.live);
+    const dstr=(d,p)=>d==null?'<span class="flat">-</span>'
+      :`<span class="${signColor(d)}">${arrow(d)} ${won(Math.abs(d))}<span class="pct">${p==null?'':' ('+(d>0?'+':'')+p.toFixed(1)+'%)'}</span></span>`;
+    const card=document.createElement('div');card.className='card';
+    card.innerHTML=`
+      <div class="chead">
+        <div>
+          <div class="cname">${h.name||'-'}</div>
+          <div class="cmeta">
+            <span class="pill t${h.tier}">T${h.tier}</span>
+            <span class="pill">${h.charge||'-'}</span>
+            <span>${h.district||''}</span>
+            <span>ID ${h.id}</span>
+          </div>
+        </div>
+        <div class="delta">
+          <div class="latest"><span class="wtag">${LW}주차</span> ${won(cur)}</div>
+          <div class="drow"><span class="dlbl">주간 vs ${PW}</span> ${dstr(wow,wowPct)}</div>
+          <div class="drow"><span class="dlbl">월간 vs ${MW}</span> ${dstr(mom,momPct)}</div>
+        </div>
+      </div>
+      <div class="chartbox"><canvas id="c${idx}"></canvas></div>
+      <div class="evrow">
+        <span>CPC 노출 <b>${impV.lv??'-'}</b><span class="ev-badge ${impV.delta>0?'ev-up':(impV.delta<0?'ev-down':'')}">${impV.delta?arrow(impV.delta)+Math.abs(impV.delta):'0'}</span></span>
+        <span>라이브이벤트 <b>${liveV.lv??'-'}</b><span class="ev-badge ${liveV.delta>0?'ev-up':(liveV.delta<0?'ev-down':'')}">${liveV.delta?arrow(liveV.delta)+Math.abs(liveV.delta):'0'}</span></span>
+      </div>`;
+    grid.appendChild(card);
+    const data=sr[state.metric];
+    const ctx=card.querySelector('#c'+idx);
+    charts[idx]=new Chart(ctx,{type:'line',
+      data:{labels:W,datasets:[{data,borderColor:'#4361ee',backgroundColor:'rgba(67,97,238,.08)',
+        borderWidth:2,fill:true,tension:.3,pointRadius:2.5,pointBackgroundColor:'#4361ee',spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>metricLabel[state.metric]+': '+won(c.parsed.y)+'원'}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9aa5b1'}},
+          y:{grid:{color:'#f0f2f6'},ticks:{font:{size:10},color:'#9aa5b1',callback:v=>v>=1000?(v/1000)+'k':v}}}}});
+  });
+}
+
+function wowDelta(arr){arr=arr||[];const c=arr[LAST],p=arr[LAST-1];return (c!=null&&p!=null)?c-p:null;}
+function alertCount(){
+  let c=0;
+  filtered().forEach(h=>{[h.series.imp,h.series.live].forEach(a=>{if(wowDelta(a))c++;});});
+  return c;
+}
+function spark(arr){
+  const vals=arr.filter(v=>v!=null); if(vals.length<2)return '';
+  const min=Math.min(...vals),max=Math.max(...vals),rng=(max-min)||1;
+  const w=96,hh=28,step=w/(arr.length-1);
+  let pts=arr.map((v,i)=>v==null?null:[i*step, hh-2-((v-min)/rng)*(hh-4)]).filter(Boolean);
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const last=arr[arr.length-1],prev=arr[arr.length-2];
+  const col=(last>prev)?'#e63946':(last<prev?'#1d7874':'#9aa5b1');
+  return `<svg class="spark" viewBox="0 0 ${w} ${hh}"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.8"/></svg>`;
+}
+function renderMonitor(){
+  const base=filtered();
+  // ---- 상단: 병원별 노출·라이브 이벤트 추이 ----
+  const dcell=(arr)=>{const d=wowDelta(arr);const cur=(arr||[])[LAST];
+    return `${cur==null?'-':cur} <span class="pct ${signColor(d)}">${(d==null||d===0)?'':(d>0?'▲':'▼')+Math.abs(d)}</span>`;};
+  const t=document.getElementById('evTable');
+  if(!base.length){t.innerHTML=`<tr><td class="empty">조건에 맞는 병원이 없습니다.</td></tr>`;
+    document.getElementById('anomalyGrid').innerHTML='';document.getElementById('count').textContent='';return;}
+  let html=`<thead><tr>
+    <th>병원 / 담당자 / 티어</th>
+    <th class="num">CPC 노출이벤트수<br><span style="font-weight:600;text-transform:none">${LW}주차(Δ)</span></th>
+    <th>노출 8주 추이</th>
+    <th class="num">라이브이벤트수<br><span style="font-weight:600;text-transform:none">${LW}주차(Δ)</span></th>
+    <th>라이브 8주 추이</th></tr></thead><tbody>`;
+  base.forEach(h=>{
+    const imp=h.series.imp||[], live=h.series.live||[];
+    html+=`<tr>
+      <td><b>${h.name||'-'}</b><div class="cmeta"><span class="pill t${h.tier}">T${h.tier}</span> <span class="pill">${h.charge||'-'}</span> <span>${h.district||''}</span></div></td>
+      <td class="num">${dcell(imp)}</td><td>${spark(imp)}</td>
+      <td class="num">${dcell(live)}</td><td>${spark(live)}</td></tr>`;
+  });
+  t.innerHTML=html+'</tbody>';
+
+  // ---- 하단: 증감 특이사항 (노출·라이브 둘 다) ----
+  const items=[];
+  base.forEach(h=>{
+    [['imp','CPC노출',h.series.imp],['live','라이브',h.series.live]].forEach(([k,lab,arr])=>{
+      const d=wowDelta(arr); if(d!=null&&d!==0) items.push({h,k,lab,d,cur:(arr||[])[LAST]});
+    });
+  });
+  const ups=items.filter(x=>x.d>0).sort((a,b)=>b.d-a.d);
+  const downs=items.filter(x=>x.d<0).sort((a,b)=>a.d-b.d);
+  const panel=(title,list,cls)=>{
+    let h=`<div class="anompanel"><h4 class="${cls}">${title} · ${list.length}건</h4>`;
+    if(!list.length)h+=`<div style="color:var(--sub);font-size:12px;padding:6px 0">해당 없음</div>`;
+    list.forEach(x=>{h+=`<div class="anomrow">
+      <span class="mbadge ${x.k}">${x.lab}</span>
+      <span class="nm">${x.h.name}</span>
+      <span class="cmeta" style="margin:0"><span class="pill">${x.h.charge||'-'}</span></span>
+      <span class="amt ${cls}">${x.d>0?'+':''}${x.d}</span>
+      <span class="cur">최신 ${x.cur}</span></div>`;});
+    return h+'</div>';
+  };
+  const dir=state.dir; let out='';
+  if(dir!=='down') out+=panel('▲ 증가',ups,'up');
+  if(dir!=='up')   out+=panel('▼ 감소',downs,'down');
+  const grid=document.getElementById('anomalyGrid');
+  grid.innerHTML=out;
+  grid.style.gridTemplateColumns=(dir==='all')?'1fr 1fr':'1fr';
+  document.getElementById('count').textContent=base.length+'개 병원 · 특이사항 '+items.length+'건';
+}
+
+function updateBadge(){document.getElementById('alertBadge').textContent=alertCount();}
+
+// ================= MANAGER TOTALS TAB =================
+const MGR_PALETTE=['#4361ee','#f72585','#f8961e','#43aa8b','#577590','#9b5de5','#e63946','#118ab2'];
+let mgrChart=null;
+function renderMgr(){
+  const base=filtered();                       // 티어/지역/검색/담당자 필터 반영
+  const groups={};
+  base.forEach(h=>{(groups[h.charge]=groups[h.charge]||[]).push(h);});
+  const names=Object.keys(groups).filter(n=>n).sort();
+  const colorOf={}; names.forEach((n,i)=>colorOf[n]=MGR_PALETTE[i%MGR_PALETTE.length]);
+  if(!names.includes(state.selMgr)) state.selMgr = names[0]||null;
+
+  // 담당자별 주차 총액(CPC매출액 합)
+  const sumsByMgr={};
+  names.forEach(nm=>{
+    sumsByMgr[nm]=W.map((_,wi)=>{
+      let s=0,any=false;
+      groups[nm].forEach(h=>{const v=(h.series.cpc||[])[wi]; if(v!=null){s+=v;any=true;}});
+      return any?s:null;
+    });
+  });
+
+  let datasets=names.map(nm=>({
+    label:`${nm} (${groups[nm].length})`, _mgr:nm,
+    data:sumsByMgr[nm], borderColor:colorOf[nm], backgroundColor:colorOf[nm],
+    borderWidth:2.5, tension:.3, pointRadius:2.5, pointHoverRadius:6, fill:false
+  }));
+  if(state.chartFocus) datasets=datasets.filter(d=>d._mgr===state.chartFocus);
+
+  // 선 끝 담당자명 라벨 플러그인
+  const labelPlugin={id:'mgrLabels',afterDatasetsDraw(chart){
+    const ctx=chart.ctx;
+    chart.data.datasets.forEach((ds,i)=>{
+      const meta=chart.getDatasetMeta(i); if(meta.hidden)return;
+      let idx=-1; for(let k=ds.data.length-1;k>=0;k--){if(ds.data[k]!=null){idx=k;break;}}
+      if(idx<0||!meta.data[idx])return;
+      const el=meta.data[idx];
+      ctx.save();
+      ctx.font='800 12px -apple-system,BlinkMacSystemFont,sans-serif';
+      ctx.fillStyle=ds.borderColor; ctx.textBaseline='middle';
+      ctx.fillText(ds._mgr, el.x+9, el.y);
+      ctx.restore();
+    });
+  }};
+
+  if(mgrChart)mgrChart.destroy();
+  const ctx=document.getElementById('mgrChart');
+  mgrChart=new Chart(ctx,{type:'line',data:{labels:W,datasets},plugins:[labelPlugin],
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      layout:{padding:{right:82}},
+      interaction:{mode:'index',intersect:false},
+      onHover:(e,els)=>{e.native.target.style.cursor=els.length?'pointer':'default';},
+      onClick:(evt)=>{
+        const pts=mgrChart.getElementsAtEventForMode(evt,'nearest',{intersect:false},true);
+        if(!pts.length)return;
+        const nm=mgrChart.data.datasets[pts[0].datasetIndex]._mgr;
+        state.chartFocus=(state.chartFocus===nm)?null:nm;
+        if(state.chartFocus)state.selMgr=nm;
+        renderMgr();
+      },
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:12},usePointStyle:true,pointStyle:'circle'},
+          onClick:(e,item,legend)=>{const nm=legend.chart.data.datasets[item.datasetIndex]._mgr;
+            state.chartFocus=(state.chartFocus===nm)?null:nm; if(state.chartFocus)state.selMgr=nm; renderMgr();}},
+        tooltip:{callbacks:{label:c=>c.dataset._mgr+': '+won(c.parsed.y)+'원'}},
+        title:{display:true,text:state.chartFocus?`${state.chartFocus} 담당 CPC매출액 총액 추이`:'담당자별 CPC매출액(광고 총액) 주차 추이',
+          font:{size:13,weight:'bold'},color:'#1a2130',padding:{bottom:10}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#9aa5b1'}},
+        y:{grid:{color:'#f0f2f6'},ticks:{color:'#9aa5b1',
+          callback:v=>v>=1e8?(v/1e8).toFixed(1)+'억':(v>=1e4?Math.round(v/1e4)+'만':v)}}}}});
+
+  // 포커스 안내 바
+  const fb=document.getElementById('mgrFocusBar');
+  if(state.chartFocus){
+    fb.style.display='flex';
+    fb.innerHTML=`<span class="focustag" style="color:${colorOf[state.chartFocus]||'#1a2130'}">● ${state.chartFocus} 담당자만 표시 중</span>
+      <button class="reset" id="clearFocus">전체 담당자 보기</button>`;
+    document.getElementById('clearFocus').onclick=()=>{state.chartFocus=null;renderMgr();};
+  } else fb.style.display='none';
+
+  // 요약표
+  const rows=names.map(nm=>{
+    const arr=sumsByMgr[nm]; const d=deltas(arr);
+    return {nm,n:groups[nm].length,arr,...d,col:colorOf[nm]};
+  }).sort((a,b)=>(b.cur??-1e18)-(a.cur??-1e18));
+  const grand=W.map((_,wi)=>{let s=0,any=false;names.forEach(nm=>{const v=sumsByMgr[nm][wi];if(v!=null){s+=v;any=true;}});return any?s:null;});
+  const gd=deltas(grand);
+
+  const dcell=(v,p)=>v==null?'<span class="flat">-</span>'
+    :`<span class="${signColor(v)}">${arrow(v)} ${won(Math.abs(v))}<span class="pct">${p==null?'':' ('+(v>0?'+':'')+p.toFixed(1)+'%)'}</span></span>`;
+  let html=`<thead><tr><th>담당자</th><th class="num">담당 병원</th><th class="num">${LW}주차 총액</th>
+    <th class="num">주간(vs ${PW})</th><th class="num">월간(vs ${MW})</th><th>8주 추이</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    html+=`<tr data-mgr="${r.nm}" class="${r.nm===state.selMgr?'sel':''}">
+      <td><span class="swatch" style="background:${r.col}"></span><b>${r.nm}</b></td>
+      <td class="num">${r.n}</td>
+      <td class="num">${won(r.cur)}</td>
+      <td class="num">${dcell(r.wow,r.wowPct)}</td>
+      <td class="num">${dcell(r.mom,r.momPct)}</td>
+      <td>${spark(r.arr)}</td></tr>`;
+  });
+  html+=`<tr style="background:#f4f6fa;font-weight:800">
+      <td><b>전체 합계</b></td><td class="num">${base.length}</td>
+      <td class="num">${won(gd.cur)}</td>
+      <td class="num">${dcell(gd.wow,gd.wowPct)}</td>
+      <td class="num">${dcell(gd.mom,gd.momPct)}</td><td>${spark(grand)}</td></tr>`;
+  html+='</tbody>';
+  const mt=document.getElementById('mgrTable');
+  mt.innerHTML=html;
+  document.getElementById('count').textContent=names.length+'명 · '+base.length+'개 병원';
+
+  // ---- 드릴다운: 요약표 행 클릭 + 담당자 칩 ----
+  mt.querySelectorAll('tr[data-mgr]').forEach(tr=>tr.onclick=()=>{
+    state.selMgr=tr.dataset.mgr; selectMgr(groups,colorOf);
+  });
+  const chipWrap=document.getElementById('mgrChips');
+  chipWrap.innerHTML=names.map(nm=>
+    `<button class="mgrchip ${nm===state.selMgr?'on':''}" data-m="${nm}"><span class="dot" style="background:${colorOf[nm]}"></span>${nm} (${groups[nm].length})</button>`).join('');
+  chipWrap.querySelectorAll('.mgrchip').forEach(b=>b.onclick=()=>{state.selMgr=b.dataset.m;selectMgr(groups,colorOf);});
+  renderMgrDetail(state.selMgr, groups[state.selMgr]||[], colorOf[state.selMgr]);
+}
+
+// 차트 재생성 없이 선택 상태만 갱신
+function selectMgr(groups,colorOf){
+  document.querySelectorAll('#mgrTable tr[data-mgr]').forEach(tr=>
+    tr.classList.toggle('sel', tr.dataset.mgr===state.selMgr));
+  document.querySelectorAll('#mgrChips .mgrchip').forEach(b=>
+    b.classList.toggle('on', b.dataset.m===state.selMgr));
+  renderMgrDetail(state.selMgr, groups[state.selMgr]||[], colorOf[state.selMgr]);
+}
+
+function renderMgrDetail(nm, hs, col){
+  const t=document.getElementById('mgrDetail');
+  if(!nm||!hs.length){t.innerHTML=`<tr><td class="empty">담당자를 선택하세요.</td></tr>`;return;}
+  const dc=(v,p)=>v==null?'<span class="flat">-</span>'
+    :`<span class="${signColor(v)}">${arrow(v)} ${won(Math.abs(v))}<span class="pct">${p==null?'':' ('+(v>0?'+':'')+p.toFixed(1)+'%)'}</span></span>`;
+  const rows=hs.map(h=>({h,d:deltas(h.series.cpc)})).sort((a,b)=>(b.d.cur??-1e18)-(a.d.cur??-1e18));
+  let html=`<thead><tr>
+    <th><span class="swatch" style="background:${col}"></span>${nm} 담당 병원 (${hs.length})</th>
+    <th class="num">${LW}주차 CPC매출액</th><th class="num">주간(vs ${PW})</th>
+    <th class="num">월간(vs ${MW})</th><th>8주 추이</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    html+=`<tr>
+      <td><b>${r.h.name||'-'}</b><div class="cmeta"><span class="pill t${r.h.tier}">T${r.h.tier}</span> <span>${r.h.district||''}</span> <span>ID ${r.h.id}</span></div></td>
+      <td class="num">${won(r.d.cur)}</td>
+      <td class="num">${dc(r.d.wow,r.d.wowPct)}</td>
+      <td class="num">${dc(r.d.mom,r.d.momPct)}</td>
+      <td>${spark(r.h.series.cpc)}</td></tr>`;
+  });
+  t.innerHTML=html+'</tbody>';
+}
+
+function render(){
+  const tab=state.tab;
+  document.getElementById('trendView').style.display=tab==='trend'?'':'none';
+  document.getElementById('mgrView').style.display=tab==='mgr'?'':'none';
+  document.getElementById('alertView').style.display=tab==='alert'?'':'none';
+  document.getElementById('metricFld').style.display=tab==='trend'?'':'none';
+  document.getElementById('sortFld').style.display=tab==='trend'?'':'none';
+  document.getElementById('reset').style.display=tab==='trend'?'':'none';
+  if(tab==='trend')renderTrend();
+  else if(tab==='mgr')renderMgr();
+  else renderMonitor();
+  updateBadge();
+}
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');state.tab=b.dataset.tab;render();
+});
+['fCharge','fTier','fDistrict','fSearch','fSort'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(id==='fSearch'?'input':'change',()=>{state.sort=document.getElementById('fSort').value;render();});
+});
+document.getElementById('metricToggle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  document.getElementById('metricToggle').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');state.metric=b.dataset.m;renderTrend();
+});
+document.getElementById('dirToggle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  document.getElementById('dirToggle').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');state.dir=b.dataset.d;render();
+});
+document.getElementById('reset').onclick=()=>{
+  ['fCharge','fTier','fDistrict'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fSearch').value='';document.getElementById('fSort').value='wow_desc';
+  state.sort='wow_desc';render();
+};
+
+// 기간·주차 안내 라벨 채우기
+document.getElementById('rangeNote').textContent=RANGE;
+document.getElementById('weekN').textContent=W.length;
+document.getElementById('pwNote').textContent=PW;
+document.getElementById('mwNote').textContent=MW;
+document.getElementById('evPeriod').textContent=`${RANGE} · 각 주차=그 주 한 주치 · 최신 ${LW}주차 · (Δ=직전주 ${PW} 대비)`;
+
+render();
+</script>
+</body>
+</html>
