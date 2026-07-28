@@ -517,9 +517,12 @@ function renderMgr(){
   mt.innerHTML=html;
   document.getElementById('count').textContent=names.length+'명 · '+base.length+'개 병원';
 
-  // ---- 드릴다운: 요약표 행 클릭 + 담당자 칩 ----
+  // ---- 드릴다운: 요약표 행 클릭 → 차트도 그 담당자만(다시 클릭 시 전체) + 상세 연동 ----
   mt.querySelectorAll('tr[data-mgr]').forEach(tr=>tr.onclick=()=>{
-    state.selMgr=tr.dataset.mgr; selectMgr(groups,colorOf);
+    const nm=tr.dataset.mgr;
+    state.chartFocus=(state.chartFocus===nm)?null:nm;
+    state.selMgr=nm;
+    renderMgr();
   });
   const chipWrap=document.getElementById('mgrChips');
   chipWrap.innerHTML=names.map(nm=>
